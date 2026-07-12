@@ -2,38 +2,61 @@
 {% block titulo %}GastoFlow - Sabé a dónde se va tu plata{% endblock %}
 
 {% block contenido %}
-<div class="landing-hero">
-    <div class="logo" style="font-size: 1.4rem; justify-content: center; display: flex;">gasto<span class="punto">flow</span></div>
-    <h1>Registrá tus gastos en segundos.</h1>
-    <p>Enterate a dónde se va tu plata cada mes, sin planillas ni complicaciones.</p>
+<div class="hero">
+    <div class="logo" style="font-size: 1.6rem; justify-content: center; display: flex; margin-bottom: 1rem;">
+        gasto<span class="punto">flow</span>
+    </div>
+    <h1 class="hero-titulo">Registrá tus gastos <span class="accent">en segundos</span></h1>
+    <p class="hero-subtitulo">Enterate a dónde se va tu plata cada mes, sin planillas ni complicaciones.</p>
+
+    <div class="hero-botones">
+        <a href="{{ url_for('auth.registro') }}" class="btn btn-jade btn-bloque">
+            <i class="ph ph-user-plus"></i> Crear cuenta
+        </a>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-accent btn-bloque">
+            <i class="ph ph-sign-in"></i> Iniciar sesión
+        </a>
+        <a href="{{ url_for('auth.invitado') }}" style="color: var(--tinta-suave); text-decoration: none; font-size: 0.88rem; text-align: center; padding-top: 0.25rem;">
+            Probar sin registrarme →
+        </a>
+    </div>
 </div>
 
 <div class="recibo">
     <div class="linea-recibo">
-        <span class="etiqueta">Comida</span>
-        <span class="puntos"></span>
-        <span class="monto monto-gasto">-₡3,500</span>
+        <span class="etiqueta"><i class="ph ph-fork-knife" style="margin-right: 0.4rem; opacity: 0.7;"></i>Comida</span>
+        <span class="valor gasto">-₡3,500</span>
     </div>
     <div class="linea-recibo">
-        <span class="etiqueta">Bus</span>
-        <span class="puntos"></span>
-        <span class="monto monto-gasto">-₡800</span>
+        <span class="etiqueta"><i class="ph ph-bus" style="margin-right: 0.4rem; opacity: 0.7;"></i>Transporte</span>
+        <span class="valor gasto">-₡800</span>
     </div>
     <div class="linea-recibo">
-        <span class="etiqueta">Salario</span>
-        <span class="puntos"></span>
-        <span class="monto monto-ingreso">+₡150,000</span>
+        <span class="etiqueta"><i class="ph ph-briefcase" style="margin-right: 0.4rem; opacity: 0.7;"></i>Salario</span>
+        <span class="valor ingreso">+₡150,000</span>
     </div>
-    <div class="linea-recibo total">
-        <span class="etiqueta">Balance</span>
-        <span class="puntos"></span>
-        <span class="monto">₡145,700</span>
+    <div class="linea-recibo">
+        <span class="etiqueta" style="font-weight:700;">Balance</span>
+        <span class="valor balance-pos" style="font-size:1.1rem;">₡145,700</span>
     </div>
 </div>
 
-<div class="landing-acciones">
-    <a href="{{ url_for('auth.registro') }}" class="btn btn-jade btn-bloque">Crear cuenta</a>
-    <a href="{{ url_for('auth.login') }}" class="btn btn-secundario btn-bloque">Iniciar sesión</a>
-    <a href="{{ url_for('auth.invitado') }}" class="btn-bloque centrado texto-suave espacio-arriba">Probar sin registrarme &rarr;</a>
+<div class="features">
+    <div class="feature-card">
+        <span class="icono-feature"><i class="ph ph-chart-bar"></i></span>
+        <p>Presupuestos por categoría</p>
+    </div>
+    <div class="feature-card">
+        <span class="icono-feature"><i class="ph ph-file-csv"></i></span>
+        <p>Exportá a CSV</p>
+    </div>
+    <div class="feature-card">
+        <span class="icono-feature"><i class="ph ph-moon"></i></span>
+        <p>Modo oscuro / claro</p>
+    </div>
+    <div class="feature-card">
+        <span class="icono-feature"><i class="ph ph-lightning"></i></span>
+        <p>Rápido y sin complicaciones</p>
+    </div>
 </div>
 {% endblock %}

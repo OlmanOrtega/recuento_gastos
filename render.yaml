@@ -14,6 +14,12 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free
+<<<<<<< Updated upstream
+=======
+    # Le dice a Render en qué puerto escucha el contenedor.
+    # El Dockerfile arranca Gunicorn en 5000, así que esto tiene que coincidir.
+    port: 5000
+>>>>>>> Stashed changes
     envVars:
       # SECRET_KEY: Render genera un valor aleatorio y seguro solo,
       # no tenes que pensarlo vos.

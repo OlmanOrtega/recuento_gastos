@@ -2,138 +2,259 @@
 {% block titulo %}Agregar transacción - GastoFlow{% endblock %}
 
 {% block contenido %}
-<h1 style="font-family: var(--fuente-display); font-size: 1.4rem; margin-bottom: 0.3rem;">Agregar transacción</h1>
+<h1 style="font-family: var(--fuente-sans); font-weight: 700; font-size: 1.4rem; margin-bottom: 0.3rem; color: var(--tinta);">Agregar transacción</h1>
 
-<div id="mensaje-resultado" class="texto-suave" style="min-height: 1.2rem; font-weight: 600;"></div>
+<div id="mensaje-resultado" style="min-height: 1.4rem; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.5rem;"></div>
 
 <div class="recibo">
     <form method="POST" action="{{ url_for('transacciones.nueva') }}" id="form-transaccion">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="frecuencia" id="input-frecuencia" value="una_vez">
+
+        <!-- Tipo -->
         <div class="selector-tipo">
             <label class="tipo-gasto">
-                <input type="radio" name="tipo" id="tipo_gasto" value="gasto" checked onchange="mostrarCategoriasSegunTipo()">
-                <span>Gasto</span>
+                <input type="radio" name="tipo" id="tipo_gasto" value="gasto" checked onchange="onTipoCambio()">
+                <i class="ph ph-arrow-up-right"></i><span>Gasto</span>
             </label>
             <label class="tipo-ingreso">
-                <input type="radio" name="tipo" id="tipo_ingreso" value="ingreso" onchange="mostrarCategoriasSegunTipo()">
-                <span>Ingreso</span>
+                <input type="radio" name="tipo" id="tipo_ingreso" value="ingreso" onchange="onTipoCambio()">
+                <i class="ph ph-arrow-down-left"></i><span>Ingreso</span>
             </label>
         </div>
 
+        <!-- Monto -->
         <div class="campo">
             <label>Monto (₡)</label>
-            <input type="number" name="monto" step="0.01" min="0.01" required>
+            <input type="number" name="monto" id="input-monto" step="0.01" min="0.01" required placeholder="0.00">
         </div>
 
+        <!-- Categoría gasto -->
         <div class="campo" id="campo_categoria_gasto">
             <label>Categoría</label>
-            <select name="categoria_id" id="categoria_gasto">
+            <select name="categoria_id" id="categoria_gasto" required>
+                <option value="" disabled selected>Elegí una categoría</option>
                 {% for categoria in categorias_gasto %}
                     <option value="{{ categoria.id }}">{{ categoria.nombre }}</option>
                 {% endfor %}
             </select>
         </div>
 
+        <!-- Categoría ingreso -->
         <div class="campo oculto" id="campo_categoria_ingreso">
             <label>Categoría</label>
             <select id="categoria_ingreso">
+                <option value="" disabled selected>Elegí una categoría</option>
                 {% for categoria in categorias_ingreso %}
                     <option value="{{ categoria.id }}">{{ categoria.nombre }}</option>
                 {% endfor %}
             </select>
         </div>
 
+        <!-- Fecha -->
         <div class="campo">
             <label>Fecha</label>
-            <input type="date" name="fecha" value="{{ hoy }}" required>
+            <input type="date" name="fecha" id="input-fecha" value="{{ hoy }}" max="{{ hoy }}" required>
+            <p id="aviso-fecha" class="texto-suave" style="font-size:0.8rem; margin-top:0.25rem; display:none;">
+                <i class="ph ph-calendar-check"></i>
+                Esta fecha es futura — la transacción se va a programar.
+            </p>
         </div>
 
+        <!-- Método de pago (obligatorio) -->
         <div class="campo">
-            <label>¿Cómo se movió el dinero? (opcional)</label>
-            <select name="metodo_pago">
-                <option value="">-- No especificar --</option>
-                <option value="efectivo">Efectivo</option>
-                <option value="digital">Digital (tarjeta, transferencia, SINPE, etc.)</option>
-            </select>
+            <label>Método de pago <span style="color:var(--oxido); font-size:0.75rem;">*</span></label>
+            <div class="selector-pago">
+                <label>
+                    <input type="radio" name="metodo_pago" value="efectivo" id="mp_efectivo" required>
+                    <i class="ph ph-money"></i><span>Efectivo</span>
+                </label>
+                <label>
+                    <input type="radio" name="metodo_pago" value="digital" id="mp_digital" required>
+                    <i class="ph ph-credit-card"></i><span>Digital</span>
+                </label>
+            </div>
+            <p id="aviso-metodo" style="display:none; font-size:0.78rem; color:var(--oxido); margin-top:0.2rem;">
+                <i class="ph ph-warning"></i> Elegí un método de pago.
+            </p>
         </div>
 
+        <!-- Nota -->
         <div class="campo">
-            <label>Nota (opcional)</label>
-            <input type="text" name="nota">
+            <label>Nota <span style="color:var(--tinta-muy-suave); font-size:0.8rem;">(opcional)</span></label>
+            <input type="text" name="nota" placeholder="Ej: almuerzo en el trabajo">
         </div>
 
-        <button type="submit" class="btn btn-jade btn-bloque">Guardar transacción</button>
+        <!-- Sección de programación (visible cuando fecha > hoy) -->
+        <div id="seccion-programar" style="display:none;">
+            <div style="border-top: 1px solid var(--border); margin: 0.75rem 0;"></div>
+            <p style="font-size:0.82rem; color:var(--accent); font-weight:600; margin-bottom:0.75rem;">
+                <i class="ph ph-calendar-dots"></i> Configurar recurrencia
+            </p>
+            <div class="campo">
+                <label>¿Se repite?</label>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <label class="chip-frecuencia activo" data-valor="una_vez">
+                        <input type="radio" name="_frecuencia_ui" value="una_vez" checked> Solo esta vez
+                    </label>
+                    <label class="chip-frecuencia" data-valor="mensual">
+                        <input type="radio" name="_frecuencia_ui" value="mensual"> Mensual
+                    </label>
+                    <label class="chip-frecuencia" data-valor="quincenal">
+                        <input type="radio" name="_frecuencia_ui" value="quincenal"> Quincenal
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-jade btn-bloque" id="btn-guardar">
+            <i class="ph ph-floppy-disk"></i>
+            <span id="texto-boton">Guardar transacción</span>
+        </button>
     </form>
 </div>
 
+<!-- Crear categoría -->
 <div class="recibo">
-    <h2>Crear una categoría nueva</h2>
+    <h2>Nueva categoría</h2>
     <form method="POST" action="{{ url_for('transacciones.nueva_categoria') }}">
-        <div class="campo">
-            <label>Nombre</label>
-            <input type="text" name="nombre_categoria" required>
-        </div>
-        <div class="campo">
-            <label>Tipo</label>
-            <select name="tipo_categoria">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div style="display:flex; gap:0.5rem;">
+            <input type="text" name="nombre_categoria" placeholder="Nombre" required style="flex:1;">
+            <select name="tipo_categoria" style="width:auto;">
                 <option value="gasto">Gasto</option>
                 <option value="ingreso">Ingreso</option>
             </select>
+            <button type="submit" class="btn btn-secundario btn-chico">Crear</button>
         </div>
-        <button type="submit" class="btn btn-secundario btn-bloque">Crear categoría</button>
     </form>
 </div>
 
+<style>
+.chip-frecuencia {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.75rem;
+    border-radius: 99px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-1);
+    color: var(--tinta-suave);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.chip-frecuencia input[type="radio"] { display: none; }
+.chip-frecuencia.activo {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+</style>
+
 <script>
-    function mostrarCategoriasSegunTipo() {
+    const HOY = "{{ hoy }}";
+
+    function onTipoCambio() {
         const tipo = document.getElementById("tipo_gasto").checked ? "gasto" : "ingreso";
-        const campoGasto = document.getElementById("campo_categoria_gasto");
-        const campoIngreso = document.getElementById("campo_categoria_ingreso");
-        const selectGasto = document.getElementById("categoria_gasto");
-        const selectIngreso = document.getElementById("categoria_ingreso");
+        const campoG = document.getElementById("campo_categoria_gasto");
+        const campoI = document.getElementById("campo_categoria_ingreso");
+        const selG   = document.getElementById("categoria_gasto");
+        const selI   = document.getElementById("categoria_ingreso");
 
         if (tipo === "gasto") {
-            campoGasto.classList.remove("oculto");
-            campoIngreso.classList.add("oculto");
-            selectGasto.setAttribute("name", "categoria_id");
-            selectIngreso.removeAttribute("name");
+            campoG.classList.remove("oculto");
+            campoI.classList.add("oculto");
+            selG.setAttribute("name", "categoria_id");
+            selI.removeAttribute("name");
         } else {
-            campoGasto.classList.add("oculto");
-            campoIngreso.classList.remove("oculto");
-            selectIngreso.setAttribute("name", "categoria_id");
-            selectGasto.removeAttribute("name");
+            campoG.classList.add("oculto");
+            campoI.classList.remove("oculto");
+            selI.setAttribute("name", "categoria_id");
+            selG.removeAttribute("name");
         }
     }
 
-    mostrarCategoriasSegunTipo();
+    function onFechaCambio() {
+        const fechaVal = document.getElementById("input-fecha").value;
+        const esFutura = fechaVal && fechaVal > HOY;
+        const aviso    = document.getElementById("aviso-fecha");
+        const seccion  = document.getElementById("seccion-programar");
+        const btnTexto = document.getElementById("texto-boton");
+
+        aviso.style.display   = esFutura ? "block" : "none";
+        seccion.style.display = esFutura ? "block"  : "none";
+
+        if (esFutura) {
+            btnTexto.textContent = "Programar transacción";
+        } else {
+            btnTexto.textContent = "Guardar transacción";
+        }
+    }
+
+    // Chips de frecuencia
+    document.querySelectorAll('.chip-frecuencia').forEach(function(chip) {
+        chip.addEventListener('click', function() {
+            document.querySelectorAll('.chip-frecuencia').forEach(c => c.classList.remove('activo'));
+            chip.classList.add('activo');
+            document.getElementById('input-frecuencia').value = chip.dataset.valor;
+        });
+    });
+
+    // Permitir fechas futuras (quitamos el max al hacer click)
+    document.getElementById("input-fecha").addEventListener('focus', function() {
+        this.removeAttribute('max');
+    });
+    document.getElementById("input-fecha").addEventListener('change', onFechaCambio);
+
+    // Submit con fetch
+    onTipoCambio();
 
     const form = document.getElementById("form-transaccion");
-    const divMensaje = document.getElementById("mensaje-resultado");
+    const divMsg = document.getElementById("mensaje-resultado");
 
-    form.addEventListener("submit", async function (evento) {
-        evento.preventDefault();
+    form.addEventListener("submit", async function(e) {
+        e.preventDefault();
+
+        // Validar método de pago
+        const mpElegido = form.querySelector('input[name="metodo_pago"]:checked');
+        const avisoPago = document.getElementById('aviso-metodo');
+        if (!mpElegido) {
+            avisoPago.style.display = 'block';
+            avisoPago.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return;
+        }
+        avisoPago.style.display = 'none';
+
         const datos = new FormData(form);
 
+        divMsg.textContent = "";
+        divMsg.style.color = "";
+
         try {
-            const respuesta = await fetch(form.action, {
+            const resp = await fetch(form.action, {
                 method: "POST",
                 headers: { "X-Requested-With": "XMLHttpRequest" },
                 body: datos,
             });
-            const resultado = await respuesta.json();
+            const json = await resp.json();
 
-            if (resultado.exito) {
-                divMensaje.textContent = resultado.mensaje;
-                divMensaje.style.color = "#0B6E4F";
+            divMsg.textContent = json.mensaje;
+            divMsg.style.color = json.exito ? "var(--jade)" : "var(--oxido)";
+
+            if (json.exito) {
                 form.reset();
-                document.querySelector('input[name="fecha"]').value = "{{ hoy }}";
-                mostrarCategoriasSegunTipo();
-            } else {
-                divMensaje.textContent = resultado.mensaje;
-                divMensaje.style.color = "#B84B25";
+                document.getElementById("input-fecha").value = HOY;
+                document.getElementById("input-frecuencia").value = "una_vez";
+                document.querySelectorAll('.chip-frecuencia').forEach((c,i) => c.classList.toggle('activo', i===0));
+                document.getElementById("aviso-fecha").style.display = "none";
+                document.getElementById("seccion-programar").style.display = "none";
+                document.getElementById("texto-boton").textContent = "Guardar transacción";
+                onTipoCambio();
             }
-        } catch (error) {
-            divMensaje.textContent = "No se pudo guardar. Revisa tu conexion e intenta de nuevo.";
-            divMensaje.style.color = "#B84B25";
+        } catch {
+            divMsg.textContent = "Error de conexión. Intentá de nuevo.";
+            divMsg.style.color = "var(--oxido)";
         }
     });
 </script>

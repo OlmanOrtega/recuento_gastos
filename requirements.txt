@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 Flask
 Flask-SQLAlchemy
 Flask-Login
@@ -5,3 +6,16 @@ PyJWT
 psycopg2-binary
 python-dotenv
 gunicorn
+=======
+Flask==3.1.0
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.3
+Flask-WTF==1.2.2
+Flask-Limiter==3.9.0
+Flask-Mail==0.10.0
+PyJWT==2.10.1
+psycopg2-binary==2.9.10
+python-dotenv==1.0.1
+python-dateutil==2.9.0
+gunicorn==23.0.0
+>>>>>>> Stashed changes

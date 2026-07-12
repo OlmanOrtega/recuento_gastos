@@ -2,66 +2,91 @@
 {% block titulo %}Historial - GastoFlow{% endblock %}
 
 {% block contenido %}
-<h1 style="font-family: var(--fuente-display); font-size: 1.4rem; margin-bottom: 0.3rem;">Historial</h1>
+<h1 style="font-family: var(--fuente-sans); font-weight: 700; font-size: 1.4rem; margin-bottom: 0.75rem; color: var(--tinta);">Historial</h1>
 
 <div id="contenido-historial">
-    <div class="recibo">
+    <div class="recibo filtros-recibo">
         <form method="GET" action="{{ url_for('transacciones.historial') }}" id="form-filtros">
-            <div class="campo">
-                <label>Mes</label>
-                <select name="mes_anio" id="select_mes">
-                    <option value="">-- Todos --</option>
-                    {% for m in meses_disponibles %}
-                        <option value="{{ m.anio }}-{{ m.mes }}"
-                            {% if anio_seleccionado == m.anio and mes_seleccionado == m.mes %}selected{% endif %}>
-                            {{ m.etiqueta }}
-                        </option>
-                    {% endfor %}
-                </select>
-                <input type="hidden" name="anio" id="input_anio" value="{{ anio_seleccionado or '' }}">
-                <input type="hidden" name="mes" id="input_mes" value="{{ mes_seleccionado or '' }}">
-                <input type="hidden" name="semana" id="input_semana" value="{{ semana_seleccionada or '' }}">
+            <!-- Búsqueda -->
+            <div class="campo busqueda-wrap" style="margin-bottom: 0.75rem;">
+                <span class="icono-busqueda"><i class="ph ph-magnifying-glass"></i></span>
+                <input type="search" name="q" placeholder="Buscar por nota o monto..." value="{{ q or '' }}" id="input_q">
             </div>
 
-            {% if semanas_disponibles %}
-            <div class="campo" id="campo_semanas">
-                <label>Semana</label>
-                <div class="semanas-botones">
-                    <button type="button" data-semana="" 
-                            class="btn btn-chico {% if not semana_seleccionada %}btn-jade{% else %}btn-secundario{% endif %}">
-                        Mes completo
-                    </button>
-                    {% for semana in semanas_disponibles %}
-                        <button type="button" data-semana="{{ semana.numero }}" 
-                                class="btn btn-chico {% if semana_seleccionada == semana.numero %}btn-jade{% else %}btn-secundario{% endif %}">
-                            Sem {{ semana.numero }}
-                            <small style="display:block; font-weight:400; opacity:0.7; font-size:0.55rem;">
-                                {{ semana.inicio }} - {{ semana.fin }}
-                            </small>
-                        </button>
-                    {% endfor %}
+            <!-- Mes + Categoría en fila -->
+            <div class="filtros-fila">
+                <div style="flex:1; min-width:0;">
+                    <label class="filtro-label">Mes</label>
+                    <select name="mes_anio" id="select_mes">
+                        <option value="">-- Todos --</option>
+                        {% for m in meses_disponibles %}
+                            <option value="{{ m.anio }}-{{ m.mes }}"
+                                {% if anio_seleccionado == m.anio and mes_seleccionado == m.mes %}selected{% endif %}>
+                                {{ m.etiqueta }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="flex:1; min-width:0;">
+                    <label class="filtro-label">Categoría</label>
+                    <select name="categoria_id" id="select_categoria">
+                        <option value="">-- Todas --</option>
+                        {% for categoria in categorias %}
+                            <option value="{{ categoria.id }}" {% if categoria_seleccionada == categoria.id %}selected{% endif %}>
+                                {{ categoria.nombre }} ({{ categoria.tipo }})
+                            </option>
+                        {% endfor %}
+                    </select>
                 </div>
             </div>
-            {% endif %}
 
-            <div class="campo">
-                <label>Categoría</label>
-                <select name="categoria_id" id="select_categoria">
-                    <option value="">-- Todas --</option>
-                    {% for categoria in categorias %}
-                        <option value="{{ categoria.id }}" {% if categoria_seleccionada == categoria.id %}selected{% endif %}>
-                            {{ categoria.nombre }} ({{ categoria.tipo }})
-                        </option>
-                    {% endfor %}
-                </select>
-            </div>
+            <input type="hidden" name="anio"        id="input_anio"   value="{{ anio_seleccionado or '' }}">
+            <input type="hidden" name="mes"         id="input_mes"    value="{{ mes_seleccionado or '' }}">
+            <input type="hidden" name="semana"      id="input_semana" value="{{ semana_seleccionada or '' }}">
+            <input type="hidden" name="metodo_pago" id="input_metodo" value="{{ metodo_pago_seleccionado or '' }}">
         </form>
 
-        <div class="espacio-arriba centrado texto-suave">
-            <a href="{{ url_for('transacciones.historial') }}">Limpiar filtros</a>
-            &nbsp;&middot;&nbsp;
-            <a href="{{ url_for('transacciones.exportar_csv', anio=anio_seleccionado, mes=mes_seleccionado, categoria_id=categoria_seleccionada) }}">
-                Exportar a CSV
+        <!-- Chips método de pago -->
+        <div style="margin-top:0.6rem;">
+            <label class="filtro-label">Método de pago</label>
+            <div class="semanas-scroll" id="chips-metodo-hist">
+                <button type="button" data-metodo="" class="chip-semana {% if not metodo_pago_seleccionado %}activo{% endif %}">
+                    <span class="chip-label">Todos</span>
+                </button>
+                <button type="button" data-metodo="efectivo" class="chip-semana {% if metodo_pago_seleccionado == 'efectivo' %}activo{% endif %}">
+                    <span class="chip-label"><i class="ph ph-money"></i> Efectivo</span>
+                </button>
+                <button type="button" data-metodo="digital" class="chip-semana {% if metodo_pago_seleccionado == 'digital' %}activo{% endif %}">
+                    <span class="chip-label"><i class="ph ph-credit-card"></i> Digital</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Chips semanas -->
+        {% if semanas_disponibles %}
+        <div style="margin-top:0.4rem;">
+            <label class="filtro-label">Semana</label>
+            <div class="semanas-scroll" id="campo_semanas">
+                <button type="button" data-semana="" class="chip-semana {% if not semana_seleccionada %}activo{% endif %}">
+                    <span class="chip-label">Todo el mes</span>
+                </button>
+                {% for semana in semanas_disponibles %}
+                    <button type="button" data-semana="{{ semana.numero }}"
+                            class="chip-semana {% if semana_seleccionada == semana.numero %}activo{% endif %}">
+                        <span class="chip-num">S{{ semana.numero }}</span>
+                        <span class="chip-rango">{{ semana.inicio }}–{{ semana.fin }}</span>
+                    </button>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div style="margin-top:0.75rem; display:flex; justify-content:space-between; align-items:center; font-size:0.8rem;">
+            <a href="{{ url_for('transacciones.historial') }}" style="color:var(--accent);">
+                <i class="ph ph-x-circle"></i> Limpiar filtros
+            </a>
+            <a href="{{ url_for('transacciones.exportar_csv', anio=anio_seleccionado, mes=mes_seleccionado, categoria_id=categoria_seleccionada) }}" style="color:var(--tinta-suave);">
+                <i class="ph ph-file-csv"></i> Exportar CSV
             </a>
         </div>
     </div>
@@ -74,28 +99,35 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const contenedor = document.getElementById('contenido-historial');
+        let searchTimeout = null;
 
         function actualizarTodo() {
             const form = document.getElementById('form-filtros');
             const formData = new FormData(form);
             const params = new URLSearchParams(formData);
             const url = "{{ url_for('transacciones.historial_data') }}?" + params.toString();
-            
-            contenedor.innerHTML = '<p class="texto-suave centrado">Cargando...</p>';
-            
+
+            document.getElementById('tabla-container').innerHTML =
+                '<p class="texto-suave" style="text-align:center; padding:1.5rem 0;">Cargando...</p>';
+
             fetch(url)
-                .then(response => response.text())
+                .then(r => r.text())
                 .then(html => {
                     contenedor.innerHTML = html;
                     inicializarEventos();
                 })
-                .catch(error => {
-                    contenedor.innerHTML = '<p class="texto-suave centrado" style="color: var(--oxido);">Error al cargar los datos</p>';
+                .catch(() => {
+                    document.getElementById('tabla-container').innerHTML =
+                        '<p class="texto-suave" style="text-align:center; color:var(--oxido);">Error al cargar los datos.</p>';
                 });
         }
 
         function inicializarEventos() {
-            // Mes
+            document.getElementById('input_q')?.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(actualizarTodo, 400);
+            });
+
             document.getElementById('select_mes')?.addEventListener('change', function() {
                 const valor = this.value;
                 if (!valor) {
@@ -111,48 +143,48 @@
                 actualizarTodo();
             });
 
-            // Categoría
             document.getElementById('select_categoria')?.addEventListener('change', function() {
+                document.getElementById('input_semana').value = '';
                 actualizarTodo();
             });
 
-            // Semanas
-            document.querySelector('.semanas-botones')?.addEventListener('click', function(e) {
-                const btn = e.target.closest('.btn');
+            // Chips método de pago
+            document.getElementById('chips-metodo-hist')?.addEventListener('click', function(e) {
+                const btn = e.target.closest('.chip-semana');
                 if (!btn) return;
-                e.preventDefault();
-                
-                const semana = btn.dataset.semana || '';
-                document.getElementById('input_semana').value = semana;
-                
-                document.querySelectorAll('.semanas-botones .btn').forEach(b => {
-                    b.classList.remove('btn-jade');
-                    b.classList.add('btn-secundario');
-                });
-                btn.classList.remove('btn-secundario');
-                btn.classList.add('btn-jade');
-                
+                document.getElementById('input_metodo').value = btn.dataset.metodo || '';
+                document.querySelectorAll('#chips-metodo-hist .chip-semana').forEach(b => b.classList.remove('activo'));
+                btn.classList.add('activo');
                 actualizarTodo();
             });
 
-            // Paginación
+            // Chips semana
+            document.getElementById('campo_semanas')?.addEventListener('click', function(e) {
+                const btn = e.target.closest('.chip-semana');
+                if (!btn) return;
+                document.getElementById('input_semana').value = btn.dataset.semana || '';
+                document.querySelectorAll('#campo_semanas .chip-semana').forEach(b => b.classList.remove('activo'));
+                btn.classList.add('activo');
+                actualizarTodo();
+            });
+
             document.querySelectorAll('[data-pagina]').forEach(function(btn) {
                 btn.addEventListener('click', function() {
                     const pagina = this.dataset.pagina;
-                    const inputPagina = document.createElement('input');
-                    inputPagina.type = 'hidden';
-                    inputPagina.name = 'pagina';
-                    inputPagina.value = pagina;
-                    document.getElementById('form-filtros').appendChild(inputPagina);
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'pagina';
+                    input.value = pagina;
+                    const form = document.getElementById('form-filtros');
+                    form.appendChild(input);
                     actualizarTodo();
-                    document.getElementById('form-filtros').removeChild(inputPagina);
+                    form.removeChild(input);
                 });
             });
 
-            // Eliminar transacciones
-            document.querySelectorAll(".form-eliminar").forEach(function(form) {
-                form.removeEventListener('submit', handleEliminar);
-                form.addEventListener('submit', handleEliminar);
+            document.querySelectorAll(".form-eliminar").forEach(function(f) {
+                f.removeEventListener('submit', handleEliminar);
+                f.addEventListener('submit', handleEliminar);
             });
         }
 
@@ -166,23 +198,19 @@
             );
             if (!confirmado) return;
 
-            const form = evento.currentTarget;
-            const transaccionId = form.dataset.transaccionId;
-            
             try {
-                const respuesta = await fetch(form.action, {
+                const respuesta = await fetch(evento.currentTarget.action, {
                     method: "POST",
                     headers: { "X-Requested-With": "XMLHttpRequest" },
                 });
                 const resultado = await respuesta.json();
-                
                 if (resultado.exito) {
                     actualizarTodo();
                 } else {
                     alert(resultado.mensaje || "Error al eliminar");
                 }
-            } catch (error) {
-                alert("No se pudo eliminar. Revisa tu conexion e intenta de nuevo.");
+            } catch {
+                alert("No se pudo eliminar. Revisá tu conexión.");
             }
         }
 

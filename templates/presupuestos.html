@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block titulo %}Presupuestos - GastoFlow{% endblock %}
+
+{% block contenido %}
+<h1 style="font-family: var(--fuente-sans); font-weight: 700; font-size: 1.4rem; margin-bottom: 0.75rem; color: var(--tinta);">Presupuestos</h1>
+
+{% if progreso %}
+<div class="recibo">
+    <h2>Este mes</h2>
+    {% for p in progreso %}
+    <div class="presupuesto-item">
+        <div class="presupuesto-header">
+            <span class="presupuesto-nombre">{{ p.presupuesto.categoria.nombre }}</span>
+            <span class="presupuesto-montos">
+                ₡{{ "{:,.0f}".format(p.gastado) }} / ₡{{ "{:,.0f}".format(p.limite) }}
+            </span>
+        </div>
+        <div class="presupuesto-bar">
+            <div class="presupuesto-fill {% if p.excedido %}excedido{% elif p.porcentaje >= 80 %}alerta{% endif %}"
+                 style="width: {{ p.porcentaje | round(1) }}%"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="texto-suave" style="font-size:0.78rem;">
+                {{ p.porcentaje | round(0) | int }}% usado
+                {% if p.excedido %} · <span style="color:var(--oxido);">¡Excedido!</span>{% endif %}
+            </span>
+            <form method="POST" action="{{ url_for('presupuestos.eliminar', presupuesto_id=p.presupuesto.id) }}"
+                  class="form-eliminar-presupuesto" data-nombre="{{ p.presupuesto.categoria.nombre }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-oxido btn-chico">
+                    <i class="ph ph-trash"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="recibo">
+    <p class="texto-suave" style="text-align: center; padding: 1rem 0;">
+        <i class="ph ph-chart-bar" style="font-size: 2rem; display: block; margin-bottom: 0.5rem; color: var(--accent);"></i>
+        No tenés presupuestos definidos aún.
+    </p>
+</div>
+{% endif %}
+
+{% if categorias_sin_presupuesto %}
+<div class="recibo">
+    <h2>Agregar presupuesto</h2>
+    <form method="POST" action="{{ url_for('presupuestos.nuevo') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="campo">
+            <label>Categoría</label>
+            <select name="categoria_id" required>
+                <option value="">-- Elegí una categoría --</option>
+                {% for cat in categorias_sin_presupuesto %}
+                    <option value="{{ cat.id }}">{{ cat.nombre }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="campo">
+            <label>Límite mensual (₡)</label>
+            <input type="number" name="monto_limite" step="0.01" min="1" required>
+        </div>
+        <button type="submit" class="btn btn-jade btn-bloque">
+            <i class="ph ph-plus"></i> Crear presupuesto
+        </button>
+    </form>
+</div>
+{% else %}
+<p class="texto-suave" style="text-align:center; font-size:0.85rem;">
+    Ya tenés presupuestos para todas tus categorías de gasto.
+</p>
+{% endif %}
+
+<script>
+    document.querySelectorAll('.form-eliminar-presupuesto').forEach(function(form) {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const nombre = this.dataset.nombre;
+            const confirmado = await mostrarModal(
+                '¿Eliminar presupuesto?',
+                `¿Eliminás el presupuesto de "${nombre}"?`,
+                'Eliminar',
+                'btn-oxido'
+            );
+            if (confirmado) this.submit();
+        });
+    });
+</script>
+{% endblock %}

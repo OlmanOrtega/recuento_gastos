@@ -1,20 +1,25 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block titulo %}GastoFlow{% endblock %}</title>
 
+    <!-- Tipografía: Outfit + IBM Plex Mono -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-
     {% block head_extra %}{% endblock %}
 </head>
 <body>
-    <!--MODAL GLOBAL DE CONFIRMACIÓN-->
+
+    <!-- MODAL GLOBAL DE CONFIRMACIÓN -->
     <div id="modal-confirmacion" class="modal-overlay" style="display: none;">
         <div class="modal-contenido">
             <h3 id="modal-titulo">¿Estás seguro?</h3>
@@ -30,6 +35,9 @@
         {% if current_user.is_authenticated %}
         <div class="encabezado">
             <a href="{{ url_for('dashboard.index') }}" class="logo">gasto<span class="punto">flow</span></a>
+            <button class="btn-tema" id="btn-tema" title="Cambiar tema" aria-label="Cambiar tema">
+                <i class="ph ph-sun" id="icono-tema"></i>
+            </button>
         </div>
         {% endif %}
 
@@ -46,140 +54,174 @@
         {% block contenido %}{% endblock %}
     </div>
 
-
     {% if current_user.is_authenticated %}
     <nav class="nav-inferior">
-    <a href="{{ url_for('dashboard.index') }}" class="{% if request.endpoint == 'dashboard.index' %}activo{% endif %}">
-        <span class="icono">&#8962;</span>
-        Inicio
-    </a>
-    <a href="{{ url_for('transacciones.historial') }}" class="{% if request.endpoint == 'transacciones.historial' %}activo{% endif %}">
-        <span class="icono">&#8801;</span>
-        Historial
-    </a>
-    <a href="{{ url_for('transacciones.nueva') }}" class="{% if request.endpoint == 'transacciones.nueva' %}activo{% endif %}">
-        <span class="icono">&#10133;</span>
-        Agregar
-    </a>
-    <a href="{{ url_for('categorias.index') }}" class="{% if request.endpoint == 'categorias.index' %}activo{% endif %}">
-        <span class="icono">&#127991;</span>
-        Categorias
-    </a>
-    <a href="#" id="toggle-theme-mobile">
-        <span class="icono" id="theme-icon-mobile">🌙</span>
-        Tema
-    </a>
-    <a href="{{ url_for('auth.logout') }}">
-        <span class="icono">&#9099;</span>
-        Salir
-    </a>
-</nav>
-    
+        <a href="{{ url_for('dashboard.index') }}"
+           class="{% if request.endpoint == 'dashboard.index' %}activo{% endif %}">
+            <span class="icono"><i class="ph ph-house"></i></span>
+            Inicio
+        </a>
+        <a href="{{ url_for('transacciones.historial') }}"
+           class="{% if request.endpoint in ['transacciones.historial', 'transacciones.historial_data'] %}activo{% endif %}">
+            <span class="icono"><i class="ph ph-clock-counter-clockwise"></i></span>
+            Historial
+        </a>
+        <a href="{{ url_for('transacciones.nueva') }}"
+           class="{% if request.endpoint == 'transacciones.nueva' %}activo{% endif %}">
+            <span class="icono"><i class="ph ph-plus-circle"></i></span>
+            Agregar
+        </a>
+        <div class="nav-herramientas" id="nav-herramientas">
+            <button class="nav-herramientas-btn{% if request.endpoint and (request.endpoint.startswith('programadas.') or request.endpoint.startswith('presupuestos.')) %} activo{% endif %}"
+                    id="btn-herramientas" aria-label="Herramientas" aria-expanded="false">
+                <span class="icono"><i class="ph ph-toolbox"></i></span>
+                Más
+            </button>
+            <div class="herramientas-popup" id="herramientas-popup" role="menu">
+                <a href="{{ url_for('programadas.index') }}" role="menuitem"
+                   class="herramientas-item{% if request.endpoint and request.endpoint.startswith('programadas.') %} activo{% endif %}">
+                    <i class="ph ph-calendar-dots"></i> Programadas
+                </a>
+                <a href="{{ url_for('presupuestos.index') }}" role="menuitem"
+                   class="herramientas-item{% if request.endpoint and request.endpoint.startswith('presupuestos.') %} activo{% endif %}">
+                    <i class="ph ph-chart-bar"></i> Presupuestos
+                </a>
+            </div>
+        </div>
+        <a href="{{ url_for('perfil.index') }}"
+           class="{% if request.endpoint and request.endpoint.startswith('perfil.') %}activo{% endif %}">
+            <span class="icono"><i class="ph ph-user-circle"></i></span>
+            Perfil
+        </a>
+    </nav>
     {% endif %}
-    
+
     {% block scripts %}{% endblock %}
 
-    <!--SCRIPTS GLOBALES-->
     <script>
-        // MODAL GLOBAL DE CONFIRMACIÓN
-        (function() {
-            const modal = document.getElementById('modal-confirmacion');
-            const modalTitulo = document.getElementById('modal-titulo');
-            const modalMensaje = document.getElementById('modal-mensaje');
-            const modalConfirmar = document.getElementById('modal-confirmar');
-            const modalCancelar = document.getElementById('modal-cancelar');
+    // ── Tema ──────────────────────────────────────────────────
+    (function () {
+        const html = document.documentElement;
+        const btnTema = document.getElementById('btn-tema');
+        const iconoTema = document.getElementById('icono-tema');
 
-            let accionPendiente = null;
+        const TEMAS = { dark: 'light', light: 'dark' };
+        const ICONOS = { dark: 'ph-sun', light: 'ph-moon' };
 
-            // Función global para mostrar el modal
-            window.mostrarModal = function(titulo, mensaje, textoBoton = 'Confirmar', tipoBoton = 'btn-jade') {
-                return new Promise((resolve) => {
-                    modalTitulo.textContent = titulo;
-                    modalMensaje.textContent = mensaje;
-                    modalConfirmar.textContent = textoBoton;
-                    modalConfirmar.className = `btn ${tipoBoton}`;
-                    modal.style.display = 'flex';
-                    accionPendiente = resolve;
-                });
-            };
-
-            function cerrarModal() {
-                modal.style.display = 'none';
-                accionPendiente = null;
+        function aplicarTema(tema) {
+            html.setAttribute('data-theme', tema);
+            if (iconoTema) {
+                iconoTema.className = 'ph ' + ICONOS[tema];
             }
+            try { localStorage.setItem('gf-tema', tema); } catch (_) {}
+        }
 
-            // Eventos
-            modalConfirmar.addEventListener('click', function() {
-                if (accionPendiente) {
-                    accionPendiente(true);
-                    cerrarModal();
-                }
+        // Leer preferencia guardada o del sistema
+        let temaInicial = 'dark';
+        try { temaInicial = localStorage.getItem('gf-tema') || temaInicial; } catch (_) {}
+        if (!localStorage.getItem('gf-tema') && window.matchMedia('(prefers-color-scheme: light)').matches) {
+            temaInicial = 'light';
+        }
+        aplicarTema(temaInicial);
+
+        if (btnTema) {
+            btnTema.addEventListener('click', function () {
+                const actual = html.getAttribute('data-theme') || 'dark';
+                aplicarTema(TEMAS[actual] || 'dark');
             });
+        }
+    })();
 
-            modalCancelar.addEventListener('click', function() {
-                if (accionPendiente) {
-                    accionPendiente(false);
-                    cerrarModal();
-                }
-            });
+    // ── CSRF global para fetch() ──────────────────────────────
+    (function () {
+        const meta = document.querySelector('meta[name="csrf-token"]');
+        const csrfToken = meta ? meta.getAttribute('content') : '';
 
-            modal.addEventListener('click', function(e) {
-                if (e.target === modal) {
-                    if (accionPendiente) {
-                        accionPendiente(false);
-                        cerrarModal();
-                    }
-                }
-            });
-
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape' && modal.style.display === 'flex') {
-                    if (accionPendiente) {
-                        accionPendiente(false);
-                        cerrarModal();
-                    }
-                }
-            });
-        })();
-
-        // TEMA OSCURO / CLARO
-        (function() {
-            const themeIconMobile = document.getElementById('theme-icon-mobile');
-            const body = document.body;
-
-            function setTheme(theme) {
-                if (theme === 'dark') {
-                    body.classList.add('dark');
-                    body.classList.remove('light');
-                    if (themeIconMobile) themeIconMobile.textContent = '☀️';
-                    localStorage.setItem('theme', 'dark');
-                } else {
-                    body.classList.remove('dark');
-                    body.classList.add('light');
-                    if (themeIconMobile) themeIconMobile.textContent = '🌙';
-                    localStorage.setItem('theme', 'light');
-                }
+        const _fetch = window.fetch;
+        window.fetch = function (input, init) {
+            init = init || {};
+            const metodo = (init.method || 'GET').toUpperCase();
+            if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(metodo)) {
+                init.headers = Object.assign({ 'X-CSRFToken': csrfToken }, init.headers || {});
             }
+            return _fetch(input, init);
+        };
+    })();
 
-            function toggleTheme() {
-                body.classList.contains('dark') ? setTheme('light') : setTheme('dark');
-            }
+    // ── Modal global de confirmación ──────────────────────────
+    (function () {
+        const modal = document.getElementById('modal-confirmacion');
+        const modalTitulo = document.getElementById('modal-titulo');
+        const modalMensaje = document.getElementById('modal-mensaje');
+        const modalConfirmar = document.getElementById('modal-confirmar');
+        const modalCancelar = document.getElementById('modal-cancelar');
 
-            document.getElementById('toggle-theme-mobile')?.addEventListener('click', function(e) {
-                e.preventDefault();
-                toggleTheme();
+        let accionPendiente = null;
+
+        window.mostrarModal = function (titulo, mensaje, textoBoton = 'Confirmar', tipoBoton = 'btn-jade') {
+            return new Promise((resolve) => {
+                modalTitulo.textContent = titulo;
+                modalMensaje.textContent = mensaje;
+                modalConfirmar.textContent = textoBoton;
+                modalConfirmar.className = `btn ${tipoBoton}`;
+                modal.style.display = 'flex';
+                accionPendiente = resolve;
             });
+        };
 
-            // Cargar tema guardado
-            const saved = localStorage.getItem('theme');
-            if (saved) {
-                setTheme(saved);
-            } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-                setTheme('dark');
-            } else {
-                setTheme('light');
+        function cerrarModal() {
+            modal.style.display = 'none';
+            accionPendiente = null;
+        }
+
+        modalConfirmar.addEventListener('click', function () {
+            if (accionPendiente) { accionPendiente(true); cerrarModal(); }
+        });
+        modalCancelar.addEventListener('click', function () {
+            if (accionPendiente) { accionPendiente(false); cerrarModal(); }
+        });
+        modal.addEventListener('click', function (e) {
+            if (e.target === modal && accionPendiente) { accionPendiente(false); cerrarModal(); }
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && modal.style.display === 'flex' && accionPendiente) {
+                accionPendiente(false);
+                cerrarModal();
             }
-        })();
+        });
+    })();
+    // ── Popup Herramientas ────────────────────────────────────
+    (function () {
+        const btn   = document.getElementById('btn-herramientas');
+        const popup = document.getElementById('herramientas-popup');
+        if (!btn || !popup) return;
+
+        function abrir() {
+            popup.classList.add('visible');
+            btn.setAttribute('aria-expanded', 'true');
+        }
+        function cerrar() {
+            popup.classList.remove('visible');
+            btn.setAttribute('aria-expanded', 'false');
+        }
+
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            popup.classList.contains('visible') ? cerrar() : abrir();
+        });
+
+        // Cerrar al tocar fuera
+        document.addEventListener('click', function (e) {
+            if (!document.getElementById('nav-herramientas').contains(e.target)) {
+                cerrar();
+            }
+        });
+
+        // Cerrar con Escape
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') cerrar();
+        });
+    })();
     </script>
 </body>
 </html>

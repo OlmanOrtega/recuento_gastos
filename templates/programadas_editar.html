@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block titulo %}Editar programada - GastoFlow{% endblock %}
+
+{% block contenido %}
+<h1 style="font-family: var(--fuente-sans); font-weight: 700; font-size: 1.4rem; margin-bottom: 0.75rem; color: var(--tinta);">
+    <i class="ph ph-pencil-simple"></i> Editar programada
+</h1>
+
+<div class="recibo">
+    <form method="POST" action="{{ url_for('programadas.editar', prog_id=prog.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <!-- Tipo -->
+        <div class="campo">
+            <label>Tipo</label>
+            <div class="selector-tipo">
+                <label class="tipo-gasto">
+                    <input type="radio" name="tipo" value="gasto" {% if prog.tipo == 'gasto' %}checked{% endif %} onchange="onTipoCambio()">
+                    <i class="ph ph-arrow-up-right"></i><span>Gasto</span>
+                </label>
+                <label class="tipo-ingreso">
+                    <input type="radio" name="tipo" value="ingreso" {% if prog.tipo == 'ingreso' %}checked{% endif %} onchange="onTipoCambio()">
+                    <i class="ph ph-arrow-down-left"></i><span>Ingreso</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Monto -->
+        <div class="campo">
+            <label>Monto (₡)</label>
+            <input type="number" name="monto" step="0.01" min="0.01" required
+                   value="{{ prog.monto }}" placeholder="0.00">
+        </div>
+
+        <!-- Categoría gasto -->
+        <div class="campo" id="campo_categoria_gasto" {% if prog.tipo == 'ingreso' %}style="display:none"{% endif %}>
+            <label>Categoría</label>
+            <select id="cat_gasto">
+                <option value="" disabled>Elegí una categoría</option>
+                {% for cat in categorias_gasto %}
+                    <option value="{{ cat.id }}" {% if prog.tipo == 'gasto' and prog.categoria_id == cat.id %}selected{% endif %}>
+                        {{ cat.nombre }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Categoría ingreso -->
+        <div class="campo" id="campo_categoria_ingreso" {% if prog.tipo == 'gasto' %}style="display:none"{% endif %}>
+            <label>Categoría</label>
+            <select id="cat_ingreso">
+                <option value="" disabled>Elegí una categoría</option>
+                {% for cat in categorias_ingreso %}
+                    <option value="{{ cat.id }}" {% if prog.tipo == 'ingreso' and prog.categoria_id == cat.id %}selected{% endif %}>
+                        {{ cat.nombre }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+        <input type="hidden" name="categoria_id" id="input_categoria">
+
+        <!-- Próxima fecha -->
+        <div class="campo">
+            <label>Próxima fecha</label>
+            <input type="date" name="fecha" required value="{{ prog.proxima_fecha.isoformat() }}">
+        </div>
+
+        <!-- Método de pago -->
+        <div class="campo">
+            <label>Método de pago <span style="color:var(--oxido); font-size:0.75rem;">*</span></label>
+            <div class="selector-pago">
+                <label>
+                    <input type="radio" name="metodo_pago" value="efectivo" {% if prog.metodo_pago == 'efectivo' %}checked{% endif %} required>
+                    <i class="ph ph-money"></i><span>Efectivo</span>
+                </label>
+                <label>
+                    <input type="radio" name="metodo_pago" value="digital" {% if prog.metodo_pago == 'digital' %}checked{% endif %} required>
+                    <i class="ph ph-credit-card"></i><span>Digital</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Frecuencia -->
+        <div class="campo">
+            <label>Frecuencia</label>
+            <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                <label class="chip-frecuencia {% if prog.frecuencia == 'una_vez' %}activo{% endif %}" data-valor="una_vez">
+                    <input type="radio" name="_frec_ui" value="una_vez" {% if prog.frecuencia == 'una_vez' %}checked{% endif %}> Solo esta vez
+                </label>
+                <label class="chip-frecuencia {% if prog.frecuencia == 'mensual' %}activo{% endif %}" data-valor="mensual">
+                    <input type="radio" name="_frec_ui" value="mensual" {% if prog.frecuencia == 'mensual' %}checked{% endif %}> Mensual
+                </label>
+                <label class="chip-frecuencia {% if prog.frecuencia == 'quincenal' %}activo{% endif %}" data-valor="quincenal">
+                    <input type="radio" name="_frec_ui" value="quincenal" {% if prog.frecuencia == 'quincenal' %}checked{% endif %}> Quincenal
+                </label>
+            </div>
+            <input type="hidden" name="frecuencia" id="input_frecuencia" value="{{ prog.frecuencia }}">
+        </div>
+
+        <!-- Nota -->
+        <div class="campo">
+            <label>Nota <span style="color:var(--tinta-muy-suave); font-size:0.8rem;">(opcional)</span></label>
+            <input type="text" name="nota" value="{{ prog.nota or '' }}" placeholder="Ej: pago mensual">
+        </div>
+
+        <div style="display:flex; gap:0.5rem; margin-top:0.5rem;">
+            <a href="{{ url_for('programadas.index') }}" class="btn btn-secundario" style="flex:1; text-align:center;">
+                Cancelar
+            </a>
+            <button type="submit" class="btn btn-accent" style="flex:1;">
+                <i class="ph ph-floppy-disk"></i> Guardar cambios
+            </button>
+        </div>
+    </form>
+</div>
+
+<style>
+.chip-frecuencia {
+    display: inline-flex; align-items: center;
+    padding: 0.35rem 0.75rem; border-radius: 99px;
+    font-size: 0.82rem; font-weight: 600;
+    border: 1px solid var(--border-strong);
+    background: var(--surface-1); color: var(--tinta-suave);
+    cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.chip-frecuencia input[type="radio"] { display: none; }
+.chip-frecuencia.activo { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+</style>
+
+<script>
+function onTipoCambio() {
+    const esGasto = document.querySelector('input[name="tipo"]:checked')?.value === 'gasto';
+    document.getElementById('campo_categoria_gasto').style.display = esGasto ? '' : 'none';
+    document.getElementById('campo_categoria_ingreso').style.display = esGasto ? 'none' : '';
+    sincronizarCategoria();
+}
+
+function sincronizarCategoria() {
+    const esGasto = document.querySelector('input[name="tipo"]:checked')?.value === 'gasto';
+    const sel = esGasto
+        ? document.getElementById('cat_gasto')
+        : document.getElementById('cat_ingreso');
+    document.getElementById('input_categoria').value = sel?.value || '';
+}
+
+// Chips frecuencia
+document.querySelectorAll('.chip-frecuencia').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+        document.querySelectorAll('.chip-frecuencia').forEach(c => c.classList.remove('activo'));
+        chip.classList.add('activo');
+        document.getElementById('input_frecuencia').value = chip.dataset.valor;
+    });
+});
+
+// Sincronizar categoría al cambiar select
+document.getElementById('cat_gasto').addEventListener('change', sincronizarCategoria);
+document.getElementById('cat_ingreso').addEventListener('change', sincronizarCategoria);
+
+// Init
+sincronizarCategoria();
+</script>
+{% endblock %}

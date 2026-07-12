@@ -1,53 +1,82 @@
-<div class="contador-transacciones" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; font-size: 0.85rem; color: var(--tinta-suave);">
-    <span>Mostrando <strong>{{ mostrando }}</strong> de <strong>{{ total_transacciones }}</strong> transacciones</span>
-    {% if mostrando < total_transacciones %}
-    <span style="font-style: italic;">(filtrado)</span>
+<div style="margin-bottom: 0.75rem;">
+    <div class="texto-suave" style="display:flex; justify-content:space-between; align-items:center; font-size:0.82rem; margin-bottom:0.4rem;">
+        <span>{{ mostrando }} de {{ total_transacciones }} transacciones</span>
+        {% if mostrando < total_transacciones %}
+        <span style="font-style:italic; color:var(--tinta-muy-suave);">filtrado</span>
+        {% endif %}
+    </div>
+    {% if total_gastos_filtro > 0 or total_ingresos_filtro > 0 %}
+    <div style="display:flex; gap:0.5rem;">
+        {% if total_gastos_filtro > 0 %}
+        <div class="tarjeta-mini" style="flex:1; padding:0.5rem 0.75rem;">
+            <p class="etiqueta" style="font-size:0.7rem;"><i class="ph ph-arrow-up-right"></i> Gastos</p>
+            <p class="monto gasto" style="font-size:0.95rem;">₡{{ "{:,.0f}".format(total_gastos_filtro) }}</p>
+        </div>
+        {% endif %}
+        {% if total_ingresos_filtro > 0 %}
+        <div class="tarjeta-mini" style="flex:1; padding:0.5rem 0.75rem;">
+            <p class="etiqueta" style="font-size:0.7rem;"><i class="ph ph-arrow-down-left"></i> Ingresos</p>
+            <p class="monto ingreso" style="font-size:0.95rem;">₡{{ "{:,.0f}".format(total_ingresos_filtro) }}</p>
+        </div>
+        {% endif %}
+    </div>
     {% endif %}
 </div>
 
 {% if transacciones %}
-<table class="tabla-recibo">
-    <tr>
-        <th>Fecha</th>
-        <th>Categoría</th>
-        <th style="text-align:right;">Monto</th>
-        <th></th>
-    </tr>
+<div class="tabla-historial">
     {% for t in transacciones %}
-    <tr id="fila-transaccion-{{ t.id }}">
-        <td>{{ t.fecha }}</td>
-        <td>{{ t.categoria.nombre }}</td>
-        <td class="monto {{ 'monto-gasto' if t.tipo == 'gasto' else 'monto-ingreso' }}">
-            {{ '-' if t.tipo == 'gasto' else '+' }}₡{{ "{:,.2f}".format(t.monto) }}
-        </td>
-        <td class="acciones">
-            <a href="{{ url_for('transacciones.editar', transaccion_id=t.id) }}" class="btn btn-secundario btn-chico">Editar</a>
+    <div class="fila-transaccion" id="fila-transaccion-{{ t.id }}">
+        <span class="tipo-dot {{ t.tipo }}"></span>
+        <div class="info">
+            <span class="categoria">{{ t.categoria.nombre }}</span>
+            <span class="meta-fila">
+                {% if t.metodo_pago == 'efectivo' %}
+                    <span class="badge-metodo"><i class="ph ph-money"></i> Efectivo</span>
+                {% elif t.metodo_pago == 'digital' %}
+                    <span class="badge-metodo"><i class="ph ph-credit-card"></i> Digital</span>
+                {% endif %}
+                {% if t.nota %}<span class="nota">{{ t.nota }}</span>{% endif %}
+            </span>
+        </div>
+        <span class="fecha">{{ t.fecha.strftime('%d/%m') }}</span>
+        <span class="monto-t {{ t.tipo }}">
+            {{ '-' if t.tipo == 'gasto' else '+' }}₡{{ "{:,.0f}".format(t.monto) }}
+        </span>
+        <div class="acciones">
+            <a href="{{ url_for('transacciones.editar', transaccion_id=t.id) }}" class="btn btn-secundario btn-chico" title="Editar">
+                <i class="ph ph-pencil-simple"></i>
+            </a>
             <form class="form-eliminar" method="POST"
                   action="{{ url_for('transacciones.eliminar', transaccion_id=t.id) }}"
                   data-transaccion-id="{{ t.id }}"
                   style="display:inline">
-                <button type="submit" class="btn btn-oxido btn-chico">Eliminar</button>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-oxido btn-chico" title="Eliminar">
+                    <i class="ph ph-trash"></i>
+                </button>
             </form>
-        </td>
-    </tr>
+        </div>
+    </div>
     {% endfor %}
-</table>
+</div>
 
-<!-- PAGINACIÓN -->
-<div class="paginacion" style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap;">
+<div class="paginacion">
     {% if pagina_actual > 1 %}
-        <button class="btn btn-secundario btn-chico" data-pagina="{{ pagina_actual - 1 }}">&larr; Anterior</button>
+        <button class="btn btn-secundario btn-chico" data-pagina="{{ pagina_actual - 1 }}">
+            <i class="ph ph-caret-left"></i>
+        </button>
     {% endif %}
-    
-    <span style="display: flex; align-items: center; font-size: 0.85rem; color: var(--tinta-suave);">
-        Página {{ pagina_actual }} de {{ total_paginas }}
-    </span>
-    
+
+    <span class="actual">{{ pagina_actual }} / {{ total_paginas }}</span>
+
     {% if pagina_actual < total_paginas %}
-        <button class="btn btn-secundario btn-chico" data-pagina="{{ pagina_actual + 1 }}">Siguiente &rarr;</button>
+        <button class="btn btn-secundario btn-chico" data-pagina="{{ pagina_actual + 1 }}">
+            <i class="ph ph-caret-right"></i>
+        </button>
     {% endif %}
 </div>
 
 {% else %}
-<p class="texto-suave centrado espacio-arriba">No hay transacciones que coincidan con estos filtros.</p>
+<p class="texto-vacio">No hay transacciones que coincidan con estos filtros.</p>
 {% endif %}

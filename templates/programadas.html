@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block titulo %}Transacciones programadas - GastoFlow{% endblock %}
+
+{% block contenido %}
+<h1 style="font-family: var(--fuente-sans); font-weight: 700; font-size: 1.4rem; margin-bottom: 0.75rem; color: var(--tinta);">
+    <i class="ph ph-calendar-dots"></i> Programadas
+</h1>
+
+{% if proximas %}
+<div class="recibo">
+    <h2>Activas</h2>
+    {% for p in proximas %}
+    <div style="padding: 0.875rem 0; border-bottom: 1px solid var(--border);" id="prog-{{ p.id }}">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem; flex-wrap:wrap;">
+            <div>
+                <div style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.25rem;">
+                    <span class="badge {% if p.tipo == 'gasto' %}badge-oxido{% else %}badge-jade{% endif %}">
+                        {{ p.tipo | capitalize }}
+                    </span>
+                    {% if p.frecuencia != 'una_vez' %}
+                    <span class="badge badge-accent">
+                        <i class="ph ph-arrows-clockwise"></i>
+                        {{ 'Mensual' if p.frecuencia == 'mensual' else 'Quincenal' }}
+                    </span>
+                    {% endif %}
+                    {% if p.proxima_fecha <= hoy %}
+                    <span class="badge" style="background: rgba(251,191,36,0.15); color: var(--alerta);">
+                        <i class="ph ph-warning"></i>
+                        {% if p._ocurrencias_atrasadas > 1 %}
+                            {{ p._ocurrencias_atrasadas }} ocurrencias pendientes
+                        {% else %}
+                            Pendiente
+                        {% endif %}
+                    </span>
+                    {% endif %}
+                </div>
+                <p style="font-weight:700; font-family: var(--fuente-mono); font-size:1.05rem;">
+                    ₡{{ "{:,.0f}".format(p.monto) }}
+                </p>
+                <p class="texto-suave" style="font-size:0.83rem;">
+                    {{ p.categoria.nombre }}
+                    {% if p.nota %} · {{ p.nota }}{% endif %}
+                </p>
+                <p style="font-size:0.78rem; color: var(--accent); margin-top:0.2rem;">
+                    <i class="ph ph-calendar"></i>
+                    {% if p.proxima_fecha <= hoy %}
+                        Debía procesarse el {{ p.proxima_fecha.strftime('%d/%m/%Y') }}
+                    {% else %}
+                        Próxima: {{ p.proxima_fecha.strftime('%d/%m/%Y') }}
+                    {% endif %}
+                    · <span style="color:var(--tinta-suave);">{{ p.metodo_pago }}</span>
+                </p>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:0.35rem; flex-shrink:0;">
+                <a href="{{ url_for('programadas.editar', prog_id=p.id) }}"
+                   class="btn btn-secundario btn-chico" title="Editar">
+                    <i class="ph ph-pencil-simple"></i>
+                </a>
+                <form method="POST" action="{{ url_for('programadas.eliminar', prog_id=p.id) }}"
+                      class="form-eliminar-prog" data-nombre="{{ p.categoria.nombre }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-oxido btn-chico" title="Eliminar">
+                        <i class="ph ph-trash"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="recibo" style="text-align:center; padding: 2rem;">
+    <i class="ph ph-calendar-dots" style="font-size:2.5rem; color:var(--accent); display:block; margin-bottom:0.75rem;"></i>
+    <p class="texto-suave">No tenés transacciones programadas.</p>
+    <a href="{{ url_for('transacciones.nueva') }}" class="btn btn-accent espacio-arriba" style="display:inline-flex;">
+        <i class="ph ph-plus"></i> Agregar una
+    </a>
+</div>
+{% endif %}
+
+<p class="texto-suave" style="text-align:center; font-size:0.82rem; margin-top:0.75rem;">
+    Para programar una transacción nueva, usá el formulario de
+    <a href="{{ url_for('transacciones.nueva') }}" style="color:var(--accent);">Agregar</a>
+    y elegí una fecha futura.
+</p>
+
+<script>
+document.querySelectorAll('.form-eliminar-prog').forEach(function(form) {
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const nombre = this.dataset.nombre;
+        const ok = await mostrarModal(
+            '¿Eliminar transacción programada?',
+            `Se va a desactivar la programación de "${nombre}". No afecta transacciones ya confirmadas.`,
+            'Eliminar', 'btn-oxido'
+        );
+        if (ok) this.submit();
+    });
+});
+</script>
+{% endblock %}

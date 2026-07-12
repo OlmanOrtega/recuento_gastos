@@ -150,10 +150,15 @@ def login():
 @api_bp.route("/transacciones", methods=["GET"])
 @requiere_token
 def listar_transacciones():
-    #Lista las transacciones del usuario autenticado. 
+    """Lista las transacciones del usuario autenticado con paginación opcional."""
     anio = request.args.get("anio", type=int)
     mes = request.args.get("mes", type=int)
     categoria_id = request.args.get("categoria_id", type=int)
+    limit = request.args.get("limit", type=int, default=50)
+    offset = request.args.get("offset", type=int, default=0)
+
+    # Máximo 200 por llamada para evitar respuestas masivas
+    limit = min(max(limit, 1), 200)
 
     query = Transaccion.query.filter_by(usuario_id=g.usuario_actual.id)
 
@@ -164,8 +169,15 @@ def listar_transacciones():
     if categoria_id:
         query = query.filter(Transaccion.categoria_id == categoria_id)
 
-    transacciones = query.order_by(Transaccion.fecha.desc()).all()
-    return jsonify(transacciones=[_transaccion_a_dict(t) for t in transacciones])
+    total = query.count()
+    transacciones = query.order_by(Transaccion.fecha.desc()).offset(offset).limit(limit).all()
+
+    return jsonify(
+        transacciones=[_transaccion_a_dict(t) for t in transacciones],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @api_bp.route("/transacciones", methods=["POST"])

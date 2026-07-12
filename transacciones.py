@@ -15,6 +15,7 @@ from flask_login import login_required, current_user
 from sqlalchemy import extract
 
 from models import db, Categoria, Transaccion, crear_categoria_usuario
+from sqlalchemy import or_ as sql_or, cast, String
 from dashboard import rango_del_mes, MESES_ES
 
 transacciones_bp = Blueprint("transacciones", __name__)
@@ -32,10 +33,13 @@ def _validar_datos_transaccion(form, usuario_id):
     categoria_id = form.get("categoria_id")
     fecha_texto = form.get("fecha", "").strip()
     nota = form.get("nota", "").strip() or None
-    metodo_pago = form.get("metodo_pago") or None
+    metodo_pago = form.get("metodo_pago", "").strip() or None
 
     if tipo not in ("gasto", "ingreso"):
         return None, "Tipo de transaccion invalido."
+
+    if metodo_pago not in ("efectivo", "digital"):
+        return None, "Elegí si el movimiento fue en efectivo o digital."
 
     try:
         monto = Decimal(monto_texto)
@@ -92,14 +96,50 @@ def nueva():
         flash(error)
         return redirect(url_for("transacciones.nueva"))
 
+    # Fecha futura → derivar a transacción programada (no crear Transaccion real)
+    if datos["fecha"] > date.today():
+        # Redirigimos internamente a programadas.nueva usando los mismos datos del form
+        from flask import current_app
+        with current_app.test_request_context():
+            pass  # solo para indicar que usamos el request actual
+        # Delegamos al blueprint de programadas pasando el request original
+        from programadas import programadas_bp
+        # Creamos la programada directamente aquí para no hacer redirect complejo
+        from models import TransaccionProgramada
+        from decimal import Decimal
+        frecuencia = request.form.get("frecuencia", "una_vez")
+        if frecuencia not in ("una_vez", "mensual", "quincenal"):
+            frecuencia = "una_vez"
+        prog = TransaccionProgramada(
+            usuario_id=current_user.id,
+            categoria_id=datos["categoria_id"],
+            tipo=datos["tipo"],
+            monto=datos["monto"],
+            metodo_pago=datos["metodo_pago"],
+            nota=datos["nota"],
+            frecuencia=frecuencia,
+            proxima_fecha=datos["fecha"],
+        )
+        db.session.add(prog)
+        db.session.commit()
+
+        etiquetas = {"una_vez": "para el", "mensual": "mensual desde el", "quincenal": "quincenal desde el"}
+        mensaje = f"Programado {etiquetas.get(frecuencia, '')} {datos['fecha'].strftime('%d/%m/%Y')}."
+
+        if _es_peticion_fetch():
+            return jsonify(exito=True, mensaje=mensaje, programada=True)
+        flash(mensaje)
+        return redirect(url_for("transacciones.nueva"))
+
+    # Fecha de hoy o pasada → transacción normal
     transaccion = Transaccion(usuario_id=current_user.id, **datos)
     db.session.add(transaccion)
     db.session.commit()
 
-    mensaje = f"{'Gasto' if datos['tipo'] == 'gasto' else 'Ingreso'} de {datos['monto']} guardado correctamente."
+    mensaje = f"{'Gasto' if datos['tipo'] == 'gasto' else 'Ingreso'} de ₡{datos['monto']} guardado."
 
     if _es_peticion_fetch():
-        return jsonify(exito=True, mensaje=mensaje)
+        return jsonify(exito=True, mensaje=mensaje, programada=False)
 
     flash(mensaje)
     return redirect(url_for("dashboard.index"))
@@ -196,20 +236,18 @@ def historial():
     semana y categoria via query params: 
     /historial?anio=2026&mes=7&semana=2&categoria_id=3
     """
-    anio, mes, categoria_id, semana = _leer_filtros_de_query()
+    anio, mes, categoria_id, semana, metodo_pago, q = _leer_filtros_de_query()
     pagina = request.args.get("pagina", 1, type=int)
     por_pagina = 10
-    
-    transacciones, total = _transacciones_paginadas(
-        current_user.id, anio, mes, categoria_id, semana, pagina, por_pagina
+
+    transacciones, total, total_gastos_filtro, total_ingresos_filtro = _transacciones_paginadas(
+        current_user.id, anio, mes, categoria_id, semana, metodo_pago, pagina, por_pagina, q
     )
-    
+
     total_paginas = ceil(total / por_pagina) if total > 0 else 1
-    
-    #Categorías
+
     categorias = Categoria.query.filter_by(usuario_id=current_user.id).order_by(Categoria.nombre).all()
-    
-    #Meses disponibles
+
     meses_con_datos = (
         db.session.query(
             extract("year", Transaccion.fecha),
@@ -224,12 +262,11 @@ def historial():
         {"anio": int(a), "mes": int(m), "etiqueta": f"{MESES_ES[int(m)]} {int(a)}"}
         for a, m in meses_con_datos
     ]
-    
-    #Semanas disponibles
+
     semanas_disponibles = []
     if anio and mes:
         semanas_disponibles = _calcular_semanas_del_mes(anio, mes)
-    
+
     return render_template(
         "historial.html",
         transacciones=transacciones,
@@ -239,18 +276,24 @@ def historial():
         mes_seleccionado=mes,
         categoria_seleccionada=categoria_id,
         semana_seleccionada=semana,
+        metodo_pago_seleccionado=metodo_pago,
         semanas_disponibles=semanas_disponibles,
+        q=q,
         pagina_actual=pagina,
         total_paginas=total_paginas,
         por_pagina=por_pagina,
         total_transacciones=total,
-        mostrando=len(transacciones)
+        mostrando=len(transacciones),
+        total_gastos_filtro=total_gastos_filtro,
+        total_ingresos_filtro=total_ingresos_filtro,
     )
     
-def _transacciones_paginadas(usuario_id, anio, mes, categoria_id, semana=None, pagina=1, por_pagina=10):
-    """Retorna transacciones paginadas y el total"""
+def _transacciones_paginadas(usuario_id, anio, mes, categoria_id, semana=None,
+                              metodo_pago=None, pagina=1, por_pagina=10, q=""):
+    """Retorna transacciones paginadas, el total y subtotales por tipo del filtro activo."""
+    from sqlalchemy import case
     query = Transaccion.query.filter_by(usuario_id=usuario_id)
-    
+
     if anio and mes and semana:
         inicio, fin = _obtener_rango_semana(anio, mes, semana)
         query = query.filter(Transaccion.fecha >= inicio, Transaccion.fecha <= fin)
@@ -259,37 +302,53 @@ def _transacciones_paginadas(usuario_id, anio, mes, categoria_id, semana=None, p
             extract("year", Transaccion.fecha) == anio,
             extract("month", Transaccion.fecha) == mes
         )
-    
+
     if categoria_id:
         query = query.filter_by(categoria_id=categoria_id)
-    
-    #Contar total antes de paginar
+
+    if metodo_pago in ("efectivo", "digital"):
+        query = query.filter(Transaccion.metodo_pago == metodo_pago)
+
+    if q:
+        query = query.filter(
+            sql_or(
+                Transaccion.nota.ilike(f"%{q}%"),
+                cast(Transaccion.monto, String).contains(q),
+            )
+        )
+
+    # Calcular subtotales ANTES de paginar reutilizando la misma query base
+    subtotales_q = db.session.query(
+        db.func.sum(case((Transaccion.tipo == "gasto",   Transaccion.monto), else_=0)),
+        db.func.sum(case((Transaccion.tipo == "ingreso", Transaccion.monto), else_=0)),
+    )
+    if query.whereclause is not None:
+        subtotales_q = subtotales_q.filter(query.whereclause)
+    subtotales = subtotales_q.one()
+    total_gastos_filtro   = float(subtotales[0] or 0)
+    total_ingresos_filtro = float(subtotales[1] or 0)
+
     total = query.count()
-    
-    #Aplicar paginación
     offset = (pagina - 1) * por_pagina
     transacciones = query.order_by(Transaccion.fecha.desc()).offset(offset).limit(por_pagina).all()
-    
-    return transacciones, total
+
+    return transacciones, total, total_gastos_filtro, total_ingresos_filtro
 
 @transacciones_bp.route("/historial/data")
-@login_required    
+@login_required
 def historial_data():
-    anio, mes, categoria_id, semana = _leer_filtros_de_query()
+    anio, mes, categoria_id, semana, metodo_pago, q = _leer_filtros_de_query()
     pagina = request.args.get("pagina", 1, type=int)
     por_pagina = 10
-    
-    #Transacciones paginadas
-    transacciones, total = _transacciones_paginadas(
-        current_user.id, anio, mes, categoria_id, semana, pagina, por_pagina
+
+    transacciones, total, total_gastos_filtro, total_ingresos_filtro = _transacciones_paginadas(
+        current_user.id, anio, mes, categoria_id, semana, metodo_pago, pagina, por_pagina, q
     )
-    
+
     total_paginas = ceil(total / por_pagina) if total > 0 else 1
-    
-    #Categorías para el dropdown
+
     categorias = Categoria.query.filter_by(usuario_id=current_user.id).order_by(Categoria.nombre).all()
-    
-    #Meses disponibles para el dropdown
+
     meses_con_datos = (
         db.session.query(
             extract("year", Transaccion.fecha),
@@ -304,13 +363,11 @@ def historial_data():
         {"anio": int(a), "mes": int(m), "etiqueta": f"{MESES_ES[int(m)]} {int(a)}"}
         for a, m in meses_con_datos
     ]
-    
-    #Semanas disponibles para el mes seleccionado
+
     semanas_disponibles = []
     if anio and mes:
         semanas_disponibles = _calcular_semanas_del_mes(anio, mes)
-    
-    #Renderizar TODO el contenido
+
     return render_template(
         "_contenido_historial.html",
         transacciones=transacciones,
@@ -320,32 +377,39 @@ def historial_data():
         mes_seleccionado=mes,
         categoria_seleccionada=categoria_id,
         semana_seleccionada=semana,
+        metodo_pago_seleccionado=metodo_pago,
         semanas_disponibles=semanas_disponibles,
-        pagina_actual=pagina,           
-        total_paginas=total_paginas,      
-        por_pagina=por_pagina,             
-        total_transacciones=total,        
-        mostrando=len(transacciones)       
+        q=q,
+        pagina_actual=pagina,
+        total_paginas=total_paginas,
+        por_pagina=por_pagina,
+        total_transacciones=total,
+        mostrando=len(transacciones),
+        total_gastos_filtro=total_gastos_filtro,
+        total_ingresos_filtro=total_ingresos_filtro,
     )
 
 def _leer_filtros_de_query():
-    """Lee los filtros de la query string"""
-    anio = request.args.get("anio", type=int)
-    mes = request.args.get("mes", type=int)
+    """Lee los filtros de la query string. Defaultea al mes actual."""
+    hoy = date.today()
+    anio = request.args.get("anio", type=int, default=hoy.year)
+    mes  = request.args.get("mes",  type=int, default=hoy.month)
     categoria_id = request.args.get("categoria_id", type=int)
-    semana = request.args.get("semana", type=int)  # NUEVO
-    return anio, mes, categoria_id, semana
+    semana = request.args.get("semana", type=int)
+    metodo_pago = request.args.get("metodo_pago", "").strip() or None
+    if metodo_pago not in (None, "efectivo", "digital"):
+        metodo_pago = None
+    q = request.args.get("q", "").strip()
+    return anio, mes, categoria_id, semana, metodo_pago, q
 
-def _transacciones_filtradas(usuario_id, anio, mes, categoria_id, semana=None):
-    """Retorna las transacciones filtradas por usuario, mes, categoria y semana"""
+def _transacciones_filtradas(usuario_id, anio, mes, categoria_id, semana=None, metodo_pago=None):
+    """Retorna las transacciones filtradas por usuario, mes, categoria, semana y método."""
     query = Transaccion.query.filter_by(usuario_id=usuario_id)
 
-    #Filtro por semana (NUEVO)
     if anio and mes and semana:
         inicio, fin = _obtener_rango_semana(anio, mes, semana)
         query = query.filter(Transaccion.fecha >= inicio, Transaccion.fecha <= fin)
     elif anio and mes:
-        #Filtro por mes completo (comportamiento original)
         query = query.filter(
             extract("year", Transaccion.fecha) == anio,
             extract("month", Transaccion.fecha) == mes
@@ -353,6 +417,9 @@ def _transacciones_filtradas(usuario_id, anio, mes, categoria_id, semana=None):
 
     if categoria_id:
         query = query.filter_by(categoria_id=categoria_id)
+
+    if metodo_pago in ("efectivo", "digital"):
+        query = query.filter(Transaccion.metodo_pago == metodo_pago)
 
     return query.order_by(Transaccion.fecha.desc()).all()
 
@@ -424,9 +491,9 @@ def _calcular_semanas_del_mes(anio, mes):
 @login_required
 def exportar_csv():
     #Genera un CSV con las transacciones del usuario
-    anio, mes, categoria_id, semana = _leer_filtros_de_query()
+    anio, mes, categoria_id, semana, metodo_pago, q = _leer_filtros_de_query()
 
-    transacciones = _transacciones_filtradas(current_user.id, anio, mes, categoria_id, semana)
+    transacciones = _transacciones_filtradas(current_user.id, anio, mes, categoria_id, semana, metodo_pago)
 
     #Armamos el CSV en memoria (io.StringIO) en vez de escribir un
     #archivo real en disco }

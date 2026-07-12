@@ -2,10 +2,11 @@
 {% block titulo %}Editar transacción - GastoFlow{% endblock %}
 
 {% block contenido %}
-<h1 style="font-family: var(--fuente-display); font-size: 1.4rem; margin-bottom: 0.3rem;">Editar transacción</h1>
+<h1 style="font-family: var(--fuente-sans); font-weight: 700; font-size: 1.4rem; margin-bottom: 0.3rem; color: var(--tinta);">Editar transacción</h1>
 
 <div class="recibo">
     <form method="POST" action="{{ url_for('transacciones.editar', transaccion_id=transaccion.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="selector-tipo">
             <label class="tipo-gasto">
                 <input type="radio" name="tipo" id="tipo_gasto" value="gasto"
@@ -28,7 +29,7 @@
 
         <div class="campo" id="campo_categoria_gasto">
             <label>Categoría</label>
-            <select name="categoria_id" id="categoria_gasto">
+            <select name="categoria_id" id="categoria_gasto" required>
                 {% for categoria in categorias_gasto %}
                     <option value="{{ categoria.id }}" {% if transaccion.categoria_id == categoria.id %}selected{% endif %}>
                         {{ categoria.nombre }}
@@ -54,12 +55,19 @@
         </div>
 
         <div class="campo">
-            <label>¿Cómo se movió el dinero? (opcional)</label>
-            <select name="metodo_pago">
-                <option value="" {% if not transaccion.metodo_pago %}selected{% endif %}>-- No especificar --</option>
-                <option value="efectivo" {% if transaccion.metodo_pago == 'efectivo' %}selected{% endif %}>Efectivo</option>
-                <option value="digital" {% if transaccion.metodo_pago == 'digital' %}selected{% endif %}>Digital (tarjeta, transferencia, SINPE, etc.)</option>
-            </select>
+            <label>Método de pago</label>
+            <div class="selector-tipo">
+                <label style="background: var(--surface-1);">
+                    <input type="radio" name="metodo_pago" value="efectivo"
+                           {% if transaccion.metodo_pago == 'efectivo' %}checked{% endif %} required>
+                    <i class="ph ph-money"></i><span>Efectivo</span>
+                </label>
+                <label style="background: var(--surface-1);">
+                    <input type="radio" name="metodo_pago" value="digital"
+                           {% if transaccion.metodo_pago == 'digital' %}checked{% endif %}>
+                    <i class="ph ph-credit-card"></i><span>Digital</span>
+                </label>
+            </div>
         </div>
 
         <div class="campo">

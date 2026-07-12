@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block titulo %}Mi perfil - GastoFlow{% endblock %}
+
+{% block contenido %}
+<h1 style="font-family: var(--fuente-sans); font-weight: 700; font-size: 1.4rem; margin-bottom: 0.75rem; color: var(--tinta);">Mi perfil</h1>
+
+<div class="recibo">
+    <div class="perfil-avatar">
+        <i class="ph ph-user-circle"></i>
+    </div>
+
+    <div style="text-align: center; margin-bottom: 1.25rem;">
+        <p style="font-size: 1.1rem; font-weight: 700;">{{ current_user.nombre }}</p>
+        {% if current_user.email %}
+            <p class="texto-suave" style="font-size: 0.88rem;">{{ current_user.email }}</p>
+        {% endif %}
+        {% if current_user.es_invitado %}
+            <span class="badge badge-accent" style="margin-top: 0.4rem;"><i class="ph ph-user-switch"></i> Invitado</span>
+        {% endif %}
+    </div>
+
+    <!-- Cambiar nombre -->
+    <h2>Nombre</h2>
+    <form method="POST" action="{{ url_for('perfil.cambiar_nombre') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="campo">
+            <input type="text" name="nombre" value="{{ current_user.nombre }}" required>
+        </div>
+        <button type="submit" class="btn btn-secundario btn-bloque">Guardar nombre</button>
+    </form>
+</div>
+
+{% if not current_user.es_invitado %}
+<div class="recibo">
+    <h2>Email</h2>
+    <form method="POST" action="{{ url_for('perfil.cambiar_email') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="campo">
+            <input type="email" name="email" value="{{ current_user.email or '' }}" required>
+        </div>
+        <button type="submit" class="btn btn-secundario btn-bloque">Guardar email</button>
+    </form>
+</div>
+
+<div class="recibo">
+    <h2>Contraseña</h2>
+    <form method="POST" action="{{ url_for('perfil.cambiar_password') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="campo">
+            <label>Contraseña actual</label>
+            <input type="password" name="password_actual" required autocomplete="current-password">
+        </div>
+        <div class="campo">
+            <label>Nueva contraseña <span style="color:var(--tinta-muy-suave); font-size:0.8rem;">(mín. 8 caracteres)</span></label>
+            <input type="password" name="password_nueva" required minlength="8" autocomplete="new-password">
+        </div>
+        <div class="campo">
+            <label>Confirmar nueva contraseña</label>
+            <input type="password" name="confirmar" required minlength="8" autocomplete="new-password">
+        </div>
+        <button type="submit" class="btn btn-secundario btn-bloque">Cambiar contraseña</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="recibo">
+    <h2>Herramientas</h2>
+    <a href="{{ url_for('presupuestos.index') }}" class="btn btn-secundario btn-bloque" style="margin-bottom:0.5rem;">
+        <i class="ph ph-chart-bar"></i> Mis presupuestos
+    </a>
+    <a href="{{ url_for('categorias.index') }}" class="btn btn-secundario btn-bloque">
+        <i class="ph ph-tag"></i> Mis categorías
+    </a>
+</div>
+
+<div class="recibo">
+    <h2>Sesión</h2>
+    <a href="{{ url_for('auth.logout') }}" class="btn btn-oxido btn-bloque">
+        <i class="ph ph-sign-out"></i> Cerrar sesión
+    </a>
+
+    {% if current_user.es_invitado %}
+    <div style="margin-top: 0.75rem;">
+        <form id="form-eliminar-invitado" method="POST" action="{{ url_for('auth.eliminar_datos_invitado_ruta') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="button" class="btn btn-secundario btn-bloque" onclick="confirmarEliminar()">
+                <i class="ph ph-trash"></i> Eliminar mis datos de prueba
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+async function confirmarEliminar() {
+    const confirmado = await mostrarModal(
+        "¿Eliminar tus datos?",
+        "Esto borrará tu cuenta de invitado y todas tus transacciones. No se puede deshacer.",
+        "Eliminar todo",
+        "btn-oxido"
+    );
+    if (confirmado) document.getElementById("form-eliminar-invitado").submit();
+}
+</script>
+{% endblock %}

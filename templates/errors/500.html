@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block titulo %}Error interno - GastoFlow{% endblock %}
+
+{% block contenido %}
+<div class="error-page">
+    <p class="error-code">500</p>
+    <h2>Algo salió mal</h2>
+    <p>Ocurrió un error interno. Ya estamos al tanto.</p>
+    <a href="{{ url_for('landing') }}" class="btn btn-accent">
+        <i class="ph ph-house"></i> Volver al inicio
+    </a>
+</div>
+{% endblock %}

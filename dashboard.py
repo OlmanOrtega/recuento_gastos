@@ -9,7 +9,7 @@ from datetime import date
 from flask import Blueprint, render_template, request
 from flask_login import login_required, current_user
 
-from models import db, Transaccion, Categoria
+from models import db, Transaccion, Categoria, TransaccionProgramada, Presupuesto
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
@@ -63,11 +63,33 @@ def total_por_tipo(usuario_id, anio, mes, tipo):
     return float(total) if total else 0.0
 
 
-def gastos_por_categoria(usuario_id, anio, mes):
-    """Devuelve una lista de dicts {nombre, total} con el gasto de cada
-    categoria en el mes dado. Solo incluye categorias con gasto > 0."""
+def ingresos_por_categoria(usuario_id, anio, mes, metodo_pago=None):
+    """Devuelve lista de dicts {nombre, total} con el ingreso de cada
+    categoría en el mes dado. Solo incluye categorías con ingreso > 0.
+    Si metodo_pago ('efectivo'|'digital') se filtra por ese método."""
     inicio, fin = rango_del_mes(anio, mes)
-    resultados = (
+    q = (
+        db.session.query(Categoria.nombre, db.func.sum(Transaccion.monto))
+        .join(Transaccion, Transaccion.categoria_id == Categoria.id)
+        .filter(
+            Transaccion.usuario_id == usuario_id,
+            Transaccion.tipo == "ingreso",
+            Transaccion.fecha >= inicio,
+            Transaccion.fecha <= fin,
+        )
+    )
+    if metodo_pago:
+        q = q.filter(Transaccion.metodo_pago == metodo_pago)
+    resultados = q.group_by(Categoria.nombre).all()
+    return [{"nombre": nombre, "total": float(total)} for nombre, total in resultados]
+
+
+def gastos_por_categoria(usuario_id, anio, mes, metodo_pago=None):
+    """Devuelve una lista de dicts {nombre, total} con el gasto de cada
+    categoria en el mes dado. Solo incluye categorias con gasto > 0.
+    Si metodo_pago ('efectivo'|'digital') se filtra por ese método."""
+    inicio, fin = rango_del_mes(anio, mes)
+    q = (
         db.session.query(Categoria.nombre, db.func.sum(Transaccion.monto))
         .join(Transaccion, Transaccion.categoria_id == Categoria.id)
         .filter(
@@ -76,9 +98,10 @@ def gastos_por_categoria(usuario_id, anio, mes):
             Transaccion.fecha >= inicio,
             Transaccion.fecha <= fin,
         )
-        .group_by(Categoria.nombre)
-        .all()
     )
+    if metodo_pago:
+        q = q.filter(Transaccion.metodo_pago == metodo_pago)
+    resultados = q.group_by(Categoria.nombre).all()
     return [{"nombre": nombre, "total": float(total)} for nombre, total in resultados]
 
 
@@ -107,6 +130,47 @@ CONSEJOS_POR_CATEGORIA = {
     "Ocio": "Revisá si hay gastos de ocio que podrías espaciar más en el mes.",
     "Servicios": "Revisá si alguna suscripción quedó activa sin que la uses.",
 }
+
+
+def alertas_presupuesto(usuario_id, anio, mes):
+    """Devuelve alertas cuando una categoría supera o llega al 80% de su presupuesto."""
+    inicio, fin = rango_del_mes(anio, mes)
+    presupuestos = (
+        Presupuesto.query
+        .join(Categoria, Categoria.id == Presupuesto.categoria_id)
+        .filter(Presupuesto.usuario_id == usuario_id, Categoria.tipo == "gasto")
+        .all()
+    )
+    alertas = []
+    for p in presupuestos:
+        gastado_raw = (
+            db.session.query(db.func.sum(Transaccion.monto))
+            .filter(
+                Transaccion.usuario_id == usuario_id,
+                Transaccion.categoria_id == p.categoria_id,
+                Transaccion.tipo == "gasto",
+                Transaccion.fecha >= inicio,
+                Transaccion.fecha <= fin,
+            )
+            .scalar()
+        )
+        gastado = float(gastado_raw) if gastado_raw else 0.0
+        limite  = float(p.monto_limite)
+        if limite <= 0:
+            continue
+        pct = (gastado / limite) * 100
+        nombre = p.categoria.nombre
+        if pct >= 100:
+            alertas.append(
+                f"Superaste el presupuesto de {nombre}: "
+                f"₡{gastado:,.0f} de ₡{limite:,.0f} ({pct:.0f}%)."
+            )
+        elif pct >= 80:
+            alertas.append(
+                f"Casi en el límite de {nombre}: "
+                f"₡{gastado:,.0f} de ₡{limite:,.0f} ({pct:.0f}%)."
+            )
+    return alertas
 
 
 def generar_alertas(usuario_id, anio, mes):
@@ -165,12 +229,38 @@ def index():
     if not (1 <= mes <= 12):
         anio, mes = hoy.year, hoy.month
 
-    total_ingresos = total_por_tipo(current_user.id, anio, mes, "ingreso")
-    total_gastos = total_por_tipo(current_user.id, anio, mes, "gasto")
+    uid = current_user.id
+    total_ingresos = total_por_tipo(uid, anio, mes, "ingreso")
+    total_gastos   = total_por_tipo(uid, anio, mes, "gasto")
     balance = total_ingresos - total_gastos
 
-    categorias = gastos_por_categoria(current_user.id, anio, mes)
-    alertas = generar_alertas(current_user.id, anio, mes)
+    # Datos del gráfico: 3 métodos × 2 tipos = 6 conjuntos
+    chart_gastos = {
+        "general":  gastos_por_categoria(uid, anio, mes),
+        "efectivo": gastos_por_categoria(uid, anio, mes, "efectivo"),
+        "digital":  gastos_por_categoria(uid, anio, mes, "digital"),
+    }
+    chart_ingresos = {
+        "general":  ingresos_por_categoria(uid, anio, mes),
+        "efectivo": ingresos_por_categoria(uid, anio, mes, "efectivo"),
+        "digital":  ingresos_por_categoria(uid, anio, mes, "digital"),
+    }
+    # Compatibilidad con el resto del template (alertas, etc.)
+    categorias        = chart_gastos["general"]
+    categorias_ingreso = chart_ingresos["general"]
+    alertas = alertas_presupuesto(uid, anio, mes) + generar_alertas(uid, anio, mes)
+
+    # Transacciones programadas pendientes (fecha ya llegó)
+    pendientes = (
+        TransaccionProgramada.query
+        .filter(
+            TransaccionProgramada.usuario_id == current_user.id,
+            TransaccionProgramada.activa == True,          # noqa: E712
+            TransaccionProgramada.proxima_fecha <= hoy,
+        )
+        .order_by(TransaccionProgramada.proxima_fecha.asc())
+        .all()
+    )
 
     nombre_mes = MESES_ES[mes]
 
@@ -202,5 +292,9 @@ def index():
         total_gastos=total_gastos,
         balance=balance,
         categorias=categorias,
+        categorias_ingreso=categorias_ingreso,
+        chart_gastos=chart_gastos,
+        chart_ingresos=chart_ingresos,
         alertas=alertas,
+        pendientes=pendientes,
     )

@@ -4,19 +4,24 @@
     {% for categoria in categorias %}
         <div class="linea-recibo" style="align-items: center;">
             <form method="POST" action="{{ url_for('categorias.editar', categoria_id=categoria.id) }}" style="display:flex; flex:1; gap:0.4rem;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="text" name="nuevo_nombre" value="{{ categoria.nombre }}" style="flex:1;">
                 <button type="submit" class="btn btn-secundario btn-chico">Renombrar</button>
             </form>
-            <form method="POST" 
+            <form method="POST"
                   action="{{ url_for('categorias.eliminar', categoria_id=categoria.id) }}"
                   class="form-eliminar-categoria"
                   data-nombre="{{ categoria.nombre }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="btn btn-oxido btn-chico">Eliminar</button>
             </form>
         </div>
+    {% else %}
+        <p class="texto-suave" style="padding: 0.5rem 0;">Sin categorías todavía.</p>
     {% endfor %}
 
     <form method="POST" action="{{ url_for('categorias.nueva') }}" class="espacio-arriba" style="display:flex; gap:0.4rem;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="text" name="nombre_categoria" placeholder="Nueva categoría de {{ titulo|lower }}" required style="flex:1;">
         <input type="hidden" name="tipo_categoria" value="{{ tipo }}">
         <button type="submit" class="btn btn-jade btn-chico">Agregar</button>

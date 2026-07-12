@@ -4,101 +4,296 @@
 {% block contenido %}
 
 {% if usuario.es_invitado %}
-    <div class="aviso-invitado">
-        <strong>Estás probando sin cuenta.</strong>
-        Tus datos se guardan mientras sigas usando GastoFlow.
-        Registrate para conservarlos, o
-        <a href="#" onclick="confirmarEliminarDatosInvitado(); return false;">eliminá tus datos de prueba</a> cuando quieras.
+    <div class="alerta-item" style="margin-bottom: 1rem;">
+        <span class="icono-alerta"><i class="ph ph-info"></i></span>
+        <span>
+            <strong>Modo invitado.</strong>
+            Tus datos se guardan temporalmente.
+            <a href="{{ url_for('auth.registro') }}" style="color: var(--accent); font-weight: 600;">Registrate</a> para conservarlos, o
+            <a href="#" onclick="confirmarEliminarDatosInvitado(); return false;" style="color: var(--oxido);">eliminá tus datos</a>.
+        </span>
     </div>
-    <form id="form-eliminar-invitado" method="POST" action="{{ url_for('auth.eliminar_datos_invitado_ruta') }}" style="display:none;"></form>
+    <form id="form-eliminar-invitado" method="POST" action="{{ url_for('auth.eliminar_datos_invitado_ruta') }}" style="display:none;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    </form>
 {% else %}
-    <p class="texto-suave" style="margin-top: 0;">Hola, {{ usuario.nombre }}</p>
+    <p class="texto-suave" style="margin-bottom: 0.75rem;">Hola, <strong style="color: var(--tinta);">{{ usuario.nombre }}</strong></p>
 {% endif %}
 
+<!-- Navegación de meses -->
 <div class="nav-mes">
     {% if puede_ir_anterior %}
-        <a href="{{ url_for('dashboard.index', anio=anio_prev, mes=mes_prev) }}">&larr; Anterior</a>
+        <a href="{{ url_for('dashboard.index', anio=anio_prev, mes=mes_prev) }}"><i class="ph ph-caret-left"></i></a>
     {% else %}
-        <span class="deshabilitado">&larr; Anterior</span>
+        <span><i class="ph ph-caret-left" style="opacity:0.2;"></i></span>
     {% endif %}
-
-    <span class="mes-actual">{{ nombre_mes }} {{ anio }}</span>
-
+    <span class="nombre-mes">{{ nombre_mes }} {{ anio }}</span>
     {% if puede_ir_siguiente %}
-        <a href="{{ url_for('dashboard.index', anio=anio_sig, mes=mes_sig) }}">Siguiente &rarr;</a>
+        <a href="{{ url_for('dashboard.index', anio=anio_sig, mes=mes_sig) }}"><i class="ph ph-caret-right"></i></a>
     {% else %}
-        <span class="deshabilitado">Siguiente &rarr;</span>
+        <span><i class="ph ph-caret-right" style="opacity:0.2;"></i></span>
     {% endif %}
 </div>
 
-{% if alertas %}
-    {% for alerta in alertas %}
-        <div class="alerta">{{ alerta }}</div>
+<!-- Balance -->
+<div class="recibo balance-bloque">
+    <p class="etiqueta-balance">Balance del mes</p>
+    <p class="total-grande {% if balance >= 0 %}ingreso{% else %}gasto{% endif %}">
+        ₡{{ "{:,.0f}".format(balance) }}
+    </p>
+</div>
+
+<!-- Ingresos / Gastos -->
+<div class="tarjetas-resumen">
+    <div class="tarjeta-mini">
+        <p class="etiqueta"><i class="ph ph-arrow-down-left"></i> Ingresos</p>
+        <p class="monto ingreso">₡{{ "{:,.0f}".format(total_ingresos) }}</p>
+    </div>
+    <div class="tarjeta-mini">
+        <p class="etiqueta"><i class="ph ph-arrow-up-right"></i> Gastos</p>
+        <p class="monto gasto">₡{{ "{:,.0f}".format(total_gastos) }}</p>
+    </div>
+</div>
+
+<!-- Pendientes de confirmar -->
+{% if pendientes %}
+<div class="recibo" id="panel-pendientes" style="margin-bottom: 1rem; border-color: var(--accent-glow);">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+        <h2 style="color: var(--accent);"><i class="ph ph-calendar-check"></i> Pendientes de confirmar</h2>
+        <span class="badge badge-accent">{{ pendientes|length }}</span>
+    </div>
+    {% for p in pendientes %}
+    <div class="pendiente-item" id="pendiente-{{ p.id }}" style="padding: 0.75rem 0; border-bottom: 1px solid var(--border);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+            <div>
+                <span class="badge {% if p.tipo == 'gasto' %}badge-oxido{% else %}badge-jade{% endif %}" style="margin-bottom:0.25rem;">
+                    {% if p.tipo == 'gasto' %}<i class="ph ph-arrow-up-right"></i>{% else %}<i class="ph ph-arrow-down-left"></i>{% endif %}
+                    {{ p.tipo | capitalize }}
+                </span>
+                <p style="font-weight:700; font-family: var(--fuente-mono); font-size:1rem;">
+                    ₡{{ "{:,.0f}".format(p.monto) }}
+                </p>
+                <p class="texto-suave" style="font-size:0.82rem;">
+                    {{ p.categoria.nombre }}
+                    {% if p.nota %} · {{ p.nota }}{% endif %}
+                </p>
+                <p class="texto-suave" style="font-size:0.78rem;">
+                    {{ p.proxima_fecha.strftime('%d/%m/%Y') }}
+                    {% if p.frecuencia != 'una_vez' %}
+                        · <span style="color:var(--accent);">{{ 'mensual' if p.frecuencia == 'mensual' else 'quincenal' }}</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div style="display:flex; gap:0.5rem; flex-shrink:0;">
+                <button class="btn btn-jade btn-chico" onclick="confirmarProgramada({{ p.id }})">
+                    <i class="ph ph-check"></i> Confirmar
+                </button>
+                <button class="btn btn-secundario btn-chico" onclick="saltarProgramada({{ p.id }})">
+                    <i class="ph ph-skip-forward"></i> Saltar
+                </button>
+            </div>
+        </div>
+    </div>
     {% endfor %}
+</div>
 {% endif %}
 
-<div class="grid-dashboard">
-    <div class="recibo">
-        <h2>Resumen del mes</h2>
-        <div class="linea-recibo">
-            <span class="etiqueta">Ingresos</span>
-            <span class="puntos"></span>
-            <span class="monto monto-ingreso">₡{{ "{:,.2f}".format(total_ingresos) }}</span>
+<!-- Alertas -->
+{% if alertas %}
+<div class="alertas" style="margin-bottom: 1rem;">
+    {% for alerta in alertas %}
+        <div class="alerta-item">
+            <span class="icono-alerta"><i class="ph ph-warning"></i></span>
+            <span>{{ alerta }}</span>
         </div>
-        <div class="linea-recibo">
-            <span class="etiqueta">Gastos</span>
-            <span class="puntos"></span>
-            <span class="monto monto-gasto">₡{{ "{:,.2f}".format(total_gastos) }}</span>
-        </div>
-        <div class="linea-recibo total">
-            <span class="etiqueta">Balance</span>
-            <span class="puntos"></span>
-            <span class="monto {{ 'monto-gasto' if balance < 0 else 'monto-ingreso' }}">₡{{ "{:,.2f}".format(balance) }}</span>
-        </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Gráfico -->
+<div class="recibo">
+    <!-- Tabs tipo -->
+    <div class="chart-tabs">
+        <button class="chart-tab activo" data-tipo="gastos">
+            <i class="ph ph-arrow-up-right"></i> Gastos
+        </button>
+        <button class="chart-tab" data-tipo="ingresos">
+            <i class="ph ph-arrow-down-left"></i> Ingresos
+        </button>
     </div>
 
-    <div class="recibo">
-        <h2>Gastos por categoría</h2>
-        {% if categorias %}
-            <div style="max-width: 100%;">
-                <canvas id="graficoCategorias"></canvas>
-            </div>
-        {% else %}
-            <p class="texto-suave">Todavía no registraste gastos este mes.</p>
-        {% endif %}
+    <!-- Chips método -->
+    <div class="semanas-scroll" id="chips-metodo-dash" style="margin-bottom: 0.75rem;">
+        <button class="chip-semana activo" data-metodo="general">
+            <span class="chip-label">General</span>
+        </button>
+        <button class="chip-semana" data-metodo="efectivo">
+            <span class="chip-label"><i class="ph ph-money"></i> Efectivo</span>
+        </button>
+        <button class="chip-semana" data-metodo="digital">
+            <span class="chip-label"><i class="ph ph-credit-card"></i> Digital</span>
+        </button>
     </div>
+
+    <div class="grafico-wrap">
+        <canvas id="chartPrincipal"></canvas>
+    </div>
+
+    <ul class="leyenda-categorias" id="leyenda-dinamica"></ul>
+    <p class="texto-suave" id="msg-sin-datos" style="display:none; text-align:center; padding-top:0.5rem;"></p>
 </div>
 
-<a href="{{ url_for('transacciones.nueva') }}" class="btn btn-jade btn-bloque espacio-arriba">+ Agregar transacción</a>
+<a href="{{ url_for('transacciones.nueva') }}" class="btn btn-jade btn-bloque" style="margin-bottom: 1rem;">
+    <i class="ph ph-plus-circle"></i> Agregar transacción
+</a>
 
-{% if categorias %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
-    const nombresCategorias = {{ categorias | map(attribute='nombre') | list | tojson }};
-    const totalesCategorias = {{ categorias | map(attribute='total') | list | tojson }};
+    // ─── Datos del servidor ───────────────────────────────────
+    const DATOS_GASTOS   = {{ chart_gastos   | tojson }};
+    const DATOS_INGRESOS = {{ chart_ingresos | tojson }};
 
-    const ctx = document.getElementById('graficoCategorias');
-    new Chart(ctx, {
-        type: 'pie',
-        data: {
-            labels: nombresCategorias,
-            datasets: [{
-                data: totalesCategorias,
-                backgroundColor: ['#B84B25', '#C68A1D', '#0B6E4F', '#6B5D48', '#8F3A1C', '#D8CDB0'],
-                borderColor: '#FAF6EA',
-                borderWidth: 2,
-            }]
-        },
-        options: {
-            plugins: {
-                legend: {
-                    labels: { font: { family: 'Work Sans' }, color: '#8B7D6B' }
-                }
-            }
+    // ─── Paletas ──────────────────────────────────────────────
+    const PALETA_GASTOS = [
+        'rgba(192,132,252,0.80)', 'rgba(244,114,182,0.80)', 'rgba(96,165,250,0.80)',
+        'rgba(251,191,36,0.80)',  'rgba(52,211,153,0.80)',  'rgba(248,113,113,0.80)',
+        'rgba(34,211,238,0.80)',  'rgba(251,146,60,0.80)',
+    ];
+    const PALETA_INGRESOS = [
+        'rgba(74,222,128,0.80)', 'rgba(52,211,153,0.80)',
+        'rgba(34,197,94,0.80)',  'rgba(20,184,166,0.80)',
+    ];
+
+    // ─── Estado ───────────────────────────────────────────────
+    let tipoActivo   = 'gastos';
+    let metodoActivo = 'general';
+    let chart = null;
+
+    // ─── Crear / actualizar chart ─────────────────────────────
+    function actualizarChart() {
+        const esgasto = tipoActivo === 'gastos';
+        const fuente  = esgasto ? DATOS_GASTOS : DATOS_INGRESOS;
+        const paleta  = esgasto ? PALETA_GASTOS : PALETA_INGRESOS;
+        const items   = fuente[metodoActivo] || [];
+
+        const leyenda    = document.getElementById('leyenda-dinamica');
+        const msgVacio   = document.getElementById('msg-sin-datos');
+        const canvas     = document.getElementById('chartPrincipal');
+
+        if (items.length === 0) {
+            canvas.style.display = 'none';
+            leyenda.style.display = 'none';
+            msgVacio.style.display = '';
+            const mp = metodoActivo === 'general' ? '' : ` en ${metodoActivo}`;
+            msgVacio.textContent = `Sin ${esgasto ? 'gastos' : 'ingresos'}${mp} este mes.`;
+            if (chart) { chart.destroy(); chart = null; }
+            return;
         }
+
+        canvas.style.display = '';
+        msgVacio.style.display = 'none';
+
+        const labels = items.map(i => i.nombre);
+        const data   = items.map(i => i.total);
+        const bgColors = labels.map((_, idx) => paleta[idx % paleta.length]);
+
+        if (chart) {
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = data;
+            chart.data.datasets[0].backgroundColor = bgColors;
+            chart.update();
+        } else {
+            chart = new Chart(canvas, {
+                type: 'doughnut',
+                data: {
+                    labels,
+                    datasets: [{ data, backgroundColor: bgColors,
+                        borderColor: 'rgba(255,255,255,0.06)', borderWidth: 2,
+                        hoverBorderColor: 'rgba(255,255,255,0.22)' }]
+                },
+                options: { cutout: '62%', plugins: { legend: { display: false } },
+                    animation: { duration: 300 } }
+            });
+        }
+
+        // Reconstruir leyenda
+        leyenda.style.display = '';
+        leyenda.innerHTML = items.map((it, idx) => {
+            const color = bgColors[idx % bgColors.length];
+            return `<li>
+                <span class="dot" style="background:${color}"></span>
+                <span class="nombre">${it.nombre}</span>
+                <span class="monto-cat">₡${it.total.toLocaleString('es-CR', {maximumFractionDigits:0})}</span>
+            </li>`;
+        }).join('');
+    }
+
+    // ─── Eventos tabs tipo ────────────────────────────────────
+    document.querySelectorAll('.chart-tab[data-tipo]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            tipoActivo = this.dataset.tipo;
+            document.querySelectorAll('.chart-tab[data-tipo]').forEach(b => b.classList.remove('activo'));
+            this.classList.add('activo');
+            if (chart) { chart.destroy(); chart = null; }
+            actualizarChart();
+        });
     });
 
+    // ─── Eventos chips método ─────────────────────────────────
+    document.querySelectorAll('#chips-metodo-dash .chip-semana').forEach(btn => {
+        btn.addEventListener('click', function() {
+            metodoActivo = this.dataset.metodo;
+            document.querySelectorAll('#chips-metodo-dash .chip-semana').forEach(b => b.classList.remove('activo'));
+            this.classList.add('activo');
+            actualizarChart();
+        });
+    });
 
+    // ─── Render inicial ───────────────────────────────────────
+    actualizarChart();
+</script>
+
+{% if pendientes %}
+<script>
+    async function confirmarProgramada(id) {
+        try {
+            const resp = await fetch(`/programadas/${id}/confirmar`, {
+                method: "POST",
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+            });
+            const json = await resp.json();
+            if (json.exito) {
+                const el = document.getElementById(`pendiente-${id}`);
+                el.style.transition = "opacity 0.3s ease";
+                el.style.opacity = "0";
+                setTimeout(() => {
+                    el.remove();
+                    const items = document.querySelectorAll('[id^="pendiente-"]');
+                    if (items.length === 0) document.getElementById("panel-pendientes")?.remove();
+                }, 300);
+            }
+        } catch { alert("Error al confirmar."); }
+    }
+
+    async function saltarProgramada(id) {
+        try {
+            const resp = await fetch(`/programadas/${id}/saltar`, {
+                method: "POST",
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+            });
+            const json = await resp.json();
+            if (json.exito) {
+                const el = document.getElementById(`pendiente-${id}`);
+                el.style.transition = "opacity 0.3s ease";
+                el.style.opacity = "0";
+                setTimeout(() => {
+                    el.remove();
+                    const items = document.querySelectorAll('[id^="pendiente-"]');
+                    if (items.length === 0) document.getElementById("panel-pendientes")?.remove();
+                }, 300);
+            }
+        } catch { alert("Error al saltar."); }
+    }
 </script>
 {% endif %}
 
