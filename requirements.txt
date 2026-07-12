@@ -2,6 +2,6 @@ Flask
 Flask-SQLAlchemy
 Flask-Login
 PyJWT
-PyMySQL
+psycopg2-binary
 python-dotenv
 gunicorn

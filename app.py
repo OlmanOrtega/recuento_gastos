@@ -24,9 +24,14 @@ DIAS_VIDA_INVITADO = 7
 def crear_app():
     app = Flask(__name__)
     #DATABASE_URL: si no esta definida, usa SQLite local. Si esta definida (por ejemplo en Docker), apunta a MySQL.
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-        "DATABASE_URL", "sqlite:///gastoflow.db"
-    )
+    # Render entrega la cadena de conexion con el prefijo "postgres://",
+    # pero las versiones modernas de SQLAlchemy (1.4+) exigen
+    # "postgresql://". Sin este ajuste, la app tira un error al conectar
+    # a la base de datos en Render, aunque localmente nunca se nota.
+    database_url = os.environ.get("DATABASE_URL", "sqlite:///gastoflow.db")
+    if database_url.startswith("postgres://"):
+        database_url = database_url.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     #SECRET_KEY que se encuentra definida acá solo por si alguien ejecuta la app localmente

@@ -1,0 +1,34 @@
+# Blueprint de Render: describe toda la infraestructura (el servicio
+# web + la base de datos) en un solo archivo. Con esto, Render puede
+# leerlo automaticamente y armar todo con "New +" > "Blueprint" en su
+# dashboard, sin que tengas que configurar cada pieza a mano.
+#
+# Esto reemplaza, del lado de Render, lo que docker-compose.yml hace
+# para correr localmente - son dos formatos distintos para el mismo
+# proposito (orquestar app + base de datos), cada uno propio de su
+# entorno.
+
+services:
+  - type: web
+    name: gastoflow
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      # SECRET_KEY: Render genera un valor aleatorio y seguro solo,
+      # no tenes que pensarlo vos.
+      - key: SECRET_KEY
+        generateValue: true
+      # DATABASE_URL: Render lo completa automaticamente con la cadena
+      # de conexion real de la base de datos definida mas abajo -
+      # no escribis usuario/password/host a mano en ningun lado.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gastoflow-db
+          property: connectionString
+
+databases:
+  - name: gastoflow-db
+    plan: free
+    databaseName: gastoflow
+    user: gastoflow
