@@ -15,9 +15,6 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     
-    # Le dice a Render en qué puerto escucha el contenedor.
-    # El Dockerfile arranca Gunicorn en 5000, así que esto tiene que coincidir.
-    port: 5000
 
     envVars:
       # SECRET_KEY: Render genera un valor aleatorio y seguro solo,
