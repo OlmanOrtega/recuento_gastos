@@ -1,0 +1,53 @@
+<div class="contador-transacciones" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; font-size: 0.85rem; color: var(--tinta-suave);">
+    <span>Mostrando <strong>{{ mostrando }}</strong> de <strong>{{ total_transacciones }}</strong> transacciones</span>
+    {% if mostrando < total_transacciones %}
+    <span style="font-style: italic;">(filtrado)</span>
+    {% endif %}
+</div>
+
+{% if transacciones %}
+<table class="tabla-recibo">
+    <tr>
+        <th>Fecha</th>
+        <th>Categoría</th>
+        <th style="text-align:right;">Monto</th>
+        <th></th>
+    </tr>
+    {% for t in transacciones %}
+    <tr id="fila-transaccion-{{ t.id }}">
+        <td>{{ t.fecha }}</td>
+        <td>{{ t.categoria.nombre }}</td>
+        <td class="monto {{ 'monto-gasto' if t.tipo == 'gasto' else 'monto-ingreso' }}">
+            {{ '-' if t.tipo == 'gasto' else '+' }}₡{{ "{:,.2f}".format(t.monto) }}
+        </td>
+        <td class="acciones">
+            <a href="{{ url_for('transacciones.editar', transaccion_id=t.id) }}" class="btn btn-secundario btn-chico">Editar</a>
+            <form class="form-eliminar" method="POST"
+                  action="{{ url_for('transacciones.eliminar', transaccion_id=t.id) }}"
+                  data-transaccion-id="{{ t.id }}"
+                  style="display:inline">
+                <button type="submit" class="btn btn-oxido btn-chico">Eliminar</button>
+            </form>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+<!-- PAGINACIÓN -->
+<div class="paginacion" style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap;">
+    {% if pagina_actual > 1 %}
+        <button class="btn btn-secundario btn-chico" data-pagina="{{ pagina_actual - 1 }}">&larr; Anterior</button>
+    {% endif %}
+    
+    <span style="display: flex; align-items: center; font-size: 0.85rem; color: var(--tinta-suave);">
+        Página {{ pagina_actual }} de {{ total_paginas }}
+    </span>
+    
+    {% if pagina_actual < total_paginas %}
+        <button class="btn btn-secundario btn-chico" data-pagina="{{ pagina_actual + 1 }}">Siguiente &rarr;</button>
+    {% endif %}
+</div>
+
+{% else %}
+<p class="texto-suave centrado espacio-arriba">No hay transacciones que coincidan con estos filtros.</p>
+{% endif %}

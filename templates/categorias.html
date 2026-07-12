@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% import "_categoria_macros.html" as macros %}
+{% block titulo %}Categorías - GastoFlow{% endblock %}
+
+{% block contenido %}
+<h1 style="font-family: var(--fuente-display); font-size: 1.4rem; margin-bottom: 0.3rem;">Mis categorías</h1>
+
+{{ macros.categoria_section('Gasto', categorias_gasto, 'gasto') }}
+{{ macros.categoria_section('Ingreso', categorias_ingreso, 'ingreso') }}
+
+<script>
+    document.querySelectorAll('.form-eliminar-categoria').forEach(function(form) {
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const nombre = this.dataset.nombre;
+            
+            // Usar la función global que ya existe en base.html
+            const confirmado = await mostrarModal(
+                '¿Eliminar categoría?',
+                `¿Seguro que querés eliminar "${nombre}"? Solo funciona si no tiene transacciones.`,
+                'Eliminar',
+                'btn-oxido'
+            );
+            
+            if (confirmado) {
+                this.submit();
+            }
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,25 @@
+{% macro categoria_section(titulo, categorias, tipo) %}
+<div class="recibo">
+    <h2>{{ titulo }}</h2>
+    {% for categoria in categorias %}
+        <div class="linea-recibo" style="align-items: center;">
+            <form method="POST" action="{{ url_for('categorias.editar', categoria_id=categoria.id) }}" style="display:flex; flex:1; gap:0.4rem;">
+                <input type="text" name="nuevo_nombre" value="{{ categoria.nombre }}" style="flex:1;">
+                <button type="submit" class="btn btn-secundario btn-chico">Renombrar</button>
+            </form>
+            <form method="POST" 
+                  action="{{ url_for('categorias.eliminar', categoria_id=categoria.id) }}"
+                  class="form-eliminar-categoria"
+                  data-nombre="{{ categoria.nombre }}">
+                <button type="submit" class="btn btn-oxido btn-chico">Eliminar</button>
+            </form>
+        </div>
+    {% endfor %}
+
+    <form method="POST" action="{{ url_for('categorias.nueva') }}" class="espacio-arriba" style="display:flex; gap:0.4rem;">
+        <input type="text" name="nombre_categoria" placeholder="Nueva categoría de {{ titulo|lower }}" required style="flex:1;">
+        <input type="hidden" name="tipo_categoria" value="{{ tipo }}">
+        <button type="submit" class="btn btn-jade btn-chico">Agregar</button>
+    </form>
+</div>
+{% endmacro %}

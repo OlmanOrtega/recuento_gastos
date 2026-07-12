@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block titulo %}Editar transacción - GastoFlow{% endblock %}
+
+{% block contenido %}
+<h1 style="font-family: var(--fuente-display); font-size: 1.4rem; margin-bottom: 0.3rem;">Editar transacción</h1>
+
+<div class="recibo">
+    <form method="POST" action="{{ url_for('transacciones.editar', transaccion_id=transaccion.id) }}">
+        <div class="selector-tipo">
+            <label class="tipo-gasto">
+                <input type="radio" name="tipo" id="tipo_gasto" value="gasto"
+                       {% if transaccion.tipo == 'gasto' %}checked{% endif %}
+                       onchange="mostrarCategoriasSegunTipo()">
+                <span>Gasto</span>
+            </label>
+            <label class="tipo-ingreso">
+                <input type="radio" name="tipo" id="tipo_ingreso" value="ingreso"
+                       {% if transaccion.tipo == 'ingreso' %}checked{% endif %}
+                       onchange="mostrarCategoriasSegunTipo()">
+                <span>Ingreso</span>
+            </label>
+        </div>
+
+        <div class="campo">
+            <label>Monto (₡)</label>
+            <input type="number" name="monto" step="0.01" min="0.01" value="{{ transaccion.monto }}" required>
+        </div>
+
+        <div class="campo" id="campo_categoria_gasto">
+            <label>Categoría</label>
+            <select name="categoria_id" id="categoria_gasto">
+                {% for categoria in categorias_gasto %}
+                    <option value="{{ categoria.id }}" {% if transaccion.categoria_id == categoria.id %}selected{% endif %}>
+                        {{ categoria.nombre }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="campo oculto" id="campo_categoria_ingreso">
+            <label>Categoría</label>
+            <select id="categoria_ingreso">
+                {% for categoria in categorias_ingreso %}
+                    <option value="{{ categoria.id }}" {% if transaccion.categoria_id == categoria.id %}selected{% endif %}>
+                        {{ categoria.nombre }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="campo">
+            <label>Fecha</label>
+            <input type="date" name="fecha" value="{{ transaccion.fecha.isoformat() }}" required>
+        </div>
+
+        <div class="campo">
+            <label>¿Cómo se movió el dinero? (opcional)</label>
+            <select name="metodo_pago">
+                <option value="" {% if not transaccion.metodo_pago %}selected{% endif %}>-- No especificar --</option>
+                <option value="efectivo" {% if transaccion.metodo_pago == 'efectivo' %}selected{% endif %}>Efectivo</option>
+                <option value="digital" {% if transaccion.metodo_pago == 'digital' %}selected{% endif %}>Digital (tarjeta, transferencia, SINPE, etc.)</option>
+            </select>
+        </div>
+
+        <div class="campo">
+            <label>Nota (opcional)</label>
+            <input type="text" name="nota" value="{{ transaccion.nota or '' }}">
+        </div>
+
+        <button type="submit" class="btn btn-jade btn-bloque">Guardar cambios</button>
+        <a href="{{ url_for('transacciones.historial') }}" class="btn btn-secundario btn-bloque espacio-arriba">Cancelar</a>
+    </form>
+</div>
+
+<script>
+    function mostrarCategoriasSegunTipo() {
+        const tipo = document.getElementById("tipo_gasto").checked ? "gasto" : "ingreso";
+        const campoGasto = document.getElementById("campo_categoria_gasto");
+        const campoIngreso = document.getElementById("campo_categoria_ingreso");
+        const selectGasto = document.getElementById("categoria_gasto");
+        const selectIngreso = document.getElementById("categoria_ingreso");
+
+        if (tipo === "gasto") {
+            campoGasto.classList.remove("oculto");
+            campoIngreso.classList.add("oculto");
+            selectGasto.setAttribute("name", "categoria_id");
+            selectIngreso.removeAttribute("name");
+        } else {
+            campoGasto.classList.add("oculto");
+            campoIngreso.classList.remove("oculto");
+            selectIngreso.setAttribute("name", "categoria_id");
+            selectGasto.removeAttribute("name");
+        }
+    }
+
+    mostrarCategoriasSegunTipo();
+</script>
+{% endblock %}

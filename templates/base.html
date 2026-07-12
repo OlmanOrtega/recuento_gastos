@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block titulo %}GastoFlow{% endblock %}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+    <!--MODAL GLOBAL DE CONFIRMACIÓN-->
+    <div id="modal-confirmacion" class="modal-overlay" style="display: none;">
+        <div class="modal-contenido">
+            <h3 id="modal-titulo">¿Estás seguro?</h3>
+            <p id="modal-mensaje">Esta acción no se puede deshacer.</p>
+            <div class="modal-botones">
+                <button id="modal-cancelar" class="btn btn-secundario">Cancelar</button>
+                <button id="modal-confirmar" class="btn btn-oxido">Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="contenedor">
+        {% if current_user.is_authenticated %}
+        <div class="encabezado">
+            <a href="{{ url_for('dashboard.index') }}" class="logo">gasto<span class="punto">flow</span></a>
+        </div>
+        {% endif %}
+
+        {% with mensajes = get_flashed_messages() %}
+            {% if mensajes %}
+                <ul class="mensajes">
+                {% for mensaje in mensajes %}
+                    <li>{{ mensaje }}</li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+
+        {% block contenido %}{% endblock %}
+    </div>
+
+
+    {% if current_user.is_authenticated %}
+    <nav class="nav-inferior">
+    <a href="{{ url_for('dashboard.index') }}" class="{% if request.endpoint == 'dashboard.index' %}activo{% endif %}">
+        <span class="icono">&#8962;</span>
+        Inicio
+    </a>
+    <a href="{{ url_for('transacciones.historial') }}" class="{% if request.endpoint == 'transacciones.historial' %}activo{% endif %}">
+        <span class="icono">&#8801;</span>
+        Historial
+    </a>
+    <a href="{{ url_for('transacciones.nueva') }}" class="{% if request.endpoint == 'transacciones.nueva' %}activo{% endif %}">
+        <span class="icono">&#10133;</span>
+        Agregar
+    </a>
+    <a href="{{ url_for('categorias.index') }}" class="{% if request.endpoint == 'categorias.index' %}activo{% endif %}">
+        <span class="icono">&#127991;</span>
+        Categorias
+    </a>
+    <a href="#" id="toggle-theme-mobile">
+        <span class="icono" id="theme-icon-mobile">🌙</span>
+        Tema
+    </a>
+    <a href="{{ url_for('auth.logout') }}">
+        <span class="icono">&#9099;</span>
+        Salir
+    </a>
+</nav>
+    
+    {% endif %}
+    
+    {% block scripts %}{% endblock %}
+
+    <!--SCRIPTS GLOBALES-->
+    <script>
+        // MODAL GLOBAL DE CONFIRMACIÓN
+        (function() {
+            const modal = document.getElementById('modal-confirmacion');
+            const modalTitulo = document.getElementById('modal-titulo');
+            const modalMensaje = document.getElementById('modal-mensaje');
+            const modalConfirmar = document.getElementById('modal-confirmar');
+            const modalCancelar = document.getElementById('modal-cancelar');
+
+            let accionPendiente = null;
+
+            // Función global para mostrar el modal
+            window.mostrarModal = function(titulo, mensaje, textoBoton = 'Confirmar', tipoBoton = 'btn-jade') {
+                return new Promise((resolve) => {
+                    modalTitulo.textContent = titulo;
+                    modalMensaje.textContent = mensaje;
+                    modalConfirmar.textContent = textoBoton;
+                    modalConfirmar.className = `btn ${tipoBoton}`;
+                    modal.style.display = 'flex';
+                    accionPendiente = resolve;
+                });
+            };
+
+            function cerrarModal() {
+                modal.style.display = 'none';
+                accionPendiente = null;
+            }
+
+            // Eventos
+            modalConfirmar.addEventListener('click', function() {
+                if (accionPendiente) {
+                    accionPendiente(true);
+                    cerrarModal();
+                }
+            });
+
+            modalCancelar.addEventListener('click', function() {
+                if (accionPendiente) {
+                    accionPendiente(false);
+                    cerrarModal();
+                }
+            });
+
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    if (accionPendiente) {
+                        accionPendiente(false);
+                        cerrarModal();
+                    }
+                }
+            });
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && modal.style.display === 'flex') {
+                    if (accionPendiente) {
+                        accionPendiente(false);
+                        cerrarModal();
+                    }
+                }
+            });
+        })();
+
+        // TEMA OSCURO / CLARO
+        (function() {
+            const themeIconMobile = document.getElementById('theme-icon-mobile');
+            const body = document.body;
+
+            function setTheme(theme) {
+                if (theme === 'dark') {
+                    body.classList.add('dark');
+                    body.classList.remove('light');
+                    if (themeIconMobile) themeIconMobile.textContent = '☀️';
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    body.classList.remove('dark');
+                    body.classList.add('light');
+                    if (themeIconMobile) themeIconMobile.textContent = '🌙';
+                    localStorage.setItem('theme', 'light');
+                }
+            }
+
+            function toggleTheme() {
+                body.classList.contains('dark') ? setTheme('light') : setTheme('dark');
+            }
+
+            document.getElementById('toggle-theme-mobile')?.addEventListener('click', function(e) {
+                e.preventDefault();
+                toggleTheme();
+            });
+
+            // Cargar tema guardado
+            const saved = localStorage.getItem('theme');
+            if (saved) {
+                setTheme(saved);
+            } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                setTheme('dark');
+            } else {
+                setTheme('light');
+            }
+        })();
+    </script>
+</body>
+</html>

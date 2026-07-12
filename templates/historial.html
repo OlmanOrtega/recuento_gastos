@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block titulo %}Historial - GastoFlow{% endblock %}
+
+{% block contenido %}
+<h1 style="font-family: var(--fuente-display); font-size: 1.4rem; margin-bottom: 0.3rem;">Historial</h1>
+
+<div id="contenido-historial">
+    <div class="recibo">
+        <form method="GET" action="{{ url_for('transacciones.historial') }}" id="form-filtros">
+            <div class="campo">
+                <label>Mes</label>
+                <select name="mes_anio" id="select_mes">
+                    <option value="">-- Todos --</option>
+                    {% for m in meses_disponibles %}
+                        <option value="{{ m.anio }}-{{ m.mes }}"
+                            {% if anio_seleccionado == m.anio and mes_seleccionado == m.mes %}selected{% endif %}>
+                            {{ m.etiqueta }}
+                        </option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" name="anio" id="input_anio" value="{{ anio_seleccionado or '' }}">
+                <input type="hidden" name="mes" id="input_mes" value="{{ mes_seleccionado or '' }}">
+                <input type="hidden" name="semana" id="input_semana" value="{{ semana_seleccionada or '' }}">
+            </div>
+
+            {% if semanas_disponibles %}
+            <div class="campo" id="campo_semanas">
+                <label>Semana</label>
+                <div class="semanas-botones">
+                    <button type="button" data-semana="" 
+                            class="btn btn-chico {% if not semana_seleccionada %}btn-jade{% else %}btn-secundario{% endif %}">
+                        Mes completo
+                    </button>
+                    {% for semana in semanas_disponibles %}
+                        <button type="button" data-semana="{{ semana.numero }}" 
+                                class="btn btn-chico {% if semana_seleccionada == semana.numero %}btn-jade{% else %}btn-secundario{% endif %}">
+                            Sem {{ semana.numero }}
+                            <small style="display:block; font-weight:400; opacity:0.7; font-size:0.55rem;">
+                                {{ semana.inicio }} - {{ semana.fin }}
+                            </small>
+                        </button>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="campo">
+                <label>Categoría</label>
+                <select name="categoria_id" id="select_categoria">
+                    <option value="">-- Todas --</option>
+                    {% for categoria in categorias %}
+                        <option value="{{ categoria.id }}" {% if categoria_seleccionada == categoria.id %}selected{% endif %}>
+                            {{ categoria.nombre }} ({{ categoria.tipo }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+
+        <div class="espacio-arriba centrado texto-suave">
+            <a href="{{ url_for('transacciones.historial') }}">Limpiar filtros</a>
+            &nbsp;&middot;&nbsp;
+            <a href="{{ url_for('transacciones.exportar_csv', anio=anio_seleccionado, mes=mes_seleccionado, categoria_id=categoria_seleccionada) }}">
+                Exportar a CSV
+            </a>
+        </div>
+    </div>
+
+    <div id="tabla-container">
+        {% include "_tabla_historial.html" %}
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const contenedor = document.getElementById('contenido-historial');
+
+        function actualizarTodo() {
+            const form = document.getElementById('form-filtros');
+            const formData = new FormData(form);
+            const params = new URLSearchParams(formData);
+            const url = "{{ url_for('transacciones.historial_data') }}?" + params.toString();
+            
+            contenedor.innerHTML = '<p class="texto-suave centrado">Cargando...</p>';
+            
+            fetch(url)
+                .then(response => response.text())
+                .then(html => {
+                    contenedor.innerHTML = html;
+                    inicializarEventos();
+                })
+                .catch(error => {
+                    contenedor.innerHTML = '<p class="texto-suave centrado" style="color: var(--oxido);">Error al cargar los datos</p>';
+                });
+        }
+
+        function inicializarEventos() {
+            // Mes
+            document.getElementById('select_mes')?.addEventListener('change', function() {
+                const valor = this.value;
+                if (!valor) {
+                    document.getElementById('input_anio').value = '';
+                    document.getElementById('input_mes').value = '';
+                    document.getElementById('input_semana').value = '';
+                } else {
+                    const [anio, mes] = valor.split('-');
+                    document.getElementById('input_anio').value = anio;
+                    document.getElementById('input_mes').value = mes;
+                    document.getElementById('input_semana').value = '';
+                }
+                actualizarTodo();
+            });
+
+            // Categoría
+            document.getElementById('select_categoria')?.addEventListener('change', function() {
+                actualizarTodo();
+            });
+
+            // Semanas
+            document.querySelector('.semanas-botones')?.addEventListener('click', function(e) {
+                const btn = e.target.closest('.btn');
+                if (!btn) return;
+                e.preventDefault();
+                
+                const semana = btn.dataset.semana || '';
+                document.getElementById('input_semana').value = semana;
+                
+                document.querySelectorAll('.semanas-botones .btn').forEach(b => {
+                    b.classList.remove('btn-jade');
+                    b.classList.add('btn-secundario');
+                });
+                btn.classList.remove('btn-secundario');
+                btn.classList.add('btn-jade');
+                
+                actualizarTodo();
+            });
+
+            // Paginación
+            document.querySelectorAll('[data-pagina]').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    const pagina = this.dataset.pagina;
+                    const inputPagina = document.createElement('input');
+                    inputPagina.type = 'hidden';
+                    inputPagina.name = 'pagina';
+                    inputPagina.value = pagina;
+                    document.getElementById('form-filtros').appendChild(inputPagina);
+                    actualizarTodo();
+                    document.getElementById('form-filtros').removeChild(inputPagina);
+                });
+            });
+
+            // Eliminar transacciones
+            document.querySelectorAll(".form-eliminar").forEach(function(form) {
+                form.removeEventListener('submit', handleEliminar);
+                form.addEventListener('submit', handleEliminar);
+            });
+        }
+
+        async function handleEliminar(evento) {
+            evento.preventDefault();
+            const confirmado = await mostrarModal(
+                "¿Eliminar transacción?",
+                "Esta acción no se puede deshacer.",
+                "Eliminar",
+                "btn-oxido"
+            );
+            if (!confirmado) return;
+
+            const form = evento.currentTarget;
+            const transaccionId = form.dataset.transaccionId;
+            
+            try {
+                const respuesta = await fetch(form.action, {
+                    method: "POST",
+                    headers: { "X-Requested-With": "XMLHttpRequest" },
+                });
+                const resultado = await respuesta.json();
+                
+                if (resultado.exito) {
+                    actualizarTodo();
+                } else {
+                    alert(resultado.mensaje || "Error al eliminar");
+                }
+            } catch (error) {
+                alert("No se pudo eliminar. Revisa tu conexion e intenta de nuevo.");
+            }
+        }
+
+        inicializarEventos();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,56 @@
+services:
+  # Base de datos MySQL. Docker descarga la imagen oficial y la levanta
+  # ya configurada - no instalas MySQL en tu sistema para nada.
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpass}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-gastoflow}
+      MYSQL_USER: ${MYSQL_USER:-gastoflow}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-gastoflow_pass}
+    volumes:
+      # Los datos de MySQL viven en un volumen de Docker, no dentro del
+      # contenedor - asi si el contenedor se borra o se reconstruye, tus
+      # datos no se pierden (persisten en el volumen "db_data").
+      - db_data:/var/lib/mysql
+    healthcheck:
+      # docker-compose usa esto para saber cuando MySQL esta REALMENTE
+      # listo para recibir conexiones (no solo "el contenedor arranco"),
+      # y recien ahi deja arrancar el contenedor "web" (ver depends_on
+      # abajo). Sin esto, Flask podria intentar conectarse a MySQL antes
+      # de que este listo y fallar en el primer arranque.
+      #
+      # start_period generoso (240s = 4 minutos): la PRIMERA vez que se
+      # crea el volumen de MySQL, la inicializacion puede tardar varios
+      # minutos en maquinas mas lentas o con Docker Desktop en Windows
+      # (el acceso a disco dentro de contenedores es mas lento ahi que
+      # en Linux nativo). Durante start_period, los intentos fallidos no
+      # cuentan para "retries" - una vez que MySQL contesta, queda sano
+      # y las arrancadas siguientes (con el volumen ya inicializado) son
+      # mucho mas rapidas.
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-rootpass}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 240s
+
+  # La aplicacion Flask, construida a partir del Dockerfile de esta carpeta.
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # mysql+pymysql:// le dice a SQLAlchemy que hable con MySQL usando
+      # el driver PyMySQL. "db" (no localhost) es el nombre del servicio
+      # de arriba - Docker resuelve ese nombre automaticamente a la IP
+      # interna del contenedor de MySQL, sin que tengas que configurar nada.
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-gastoflow}:${MYSQL_PASSWORD:-gastoflow_pass}@db:3306/${MYSQL_DATABASE:-gastoflow}
+      SECRET_KEY: ${SECRET_KEY:-cambia-esta-clave-en-produccion}
+    ports:
+      - "5000:5000"
+
+volumes:
+  db_data:

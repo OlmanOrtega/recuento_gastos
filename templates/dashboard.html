@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block titulo %}Dashboard - GastoFlow{% endblock %}
+
+{% block contenido %}
+
+{% if usuario.es_invitado %}
+    <div class="aviso-invitado">
+        <strong>Estás probando sin cuenta.</strong>
+        Tus datos se guardan mientras sigas usando GastoFlow.
+        Registrate para conservarlos, o
+        <a href="#" onclick="confirmarEliminarDatosInvitado(); return false;">eliminá tus datos de prueba</a> cuando quieras.
+    </div>
+    <form id="form-eliminar-invitado" method="POST" action="{{ url_for('auth.eliminar_datos_invitado_ruta') }}" style="display:none;"></form>
+{% else %}
+    <p class="texto-suave" style="margin-top: 0;">Hola, {{ usuario.nombre }}</p>
+{% endif %}
+
+<div class="nav-mes">
+    {% if puede_ir_anterior %}
+        <a href="{{ url_for('dashboard.index', anio=anio_prev, mes=mes_prev) }}">&larr; Anterior</a>
+    {% else %}
+        <span class="deshabilitado">&larr; Anterior</span>
+    {% endif %}
+
+    <span class="mes-actual">{{ nombre_mes }} {{ anio }}</span>
+
+    {% if puede_ir_siguiente %}
+        <a href="{{ url_for('dashboard.index', anio=anio_sig, mes=mes_sig) }}">Siguiente &rarr;</a>
+    {% else %}
+        <span class="deshabilitado">Siguiente &rarr;</span>
+    {% endif %}
+</div>
+
+{% if alertas %}
+    {% for alerta in alertas %}
+        <div class="alerta">{{ alerta }}</div>
+    {% endfor %}
+{% endif %}
+
+<div class="grid-dashboard">
+    <div class="recibo">
+        <h2>Resumen del mes</h2>
+        <div class="linea-recibo">
+            <span class="etiqueta">Ingresos</span>
+            <span class="puntos"></span>
+            <span class="monto monto-ingreso">₡{{ "{:,.2f}".format(total_ingresos) }}</span>
+        </div>
+        <div class="linea-recibo">
+            <span class="etiqueta">Gastos</span>
+            <span class="puntos"></span>
+            <span class="monto monto-gasto">₡{{ "{:,.2f}".format(total_gastos) }}</span>
+        </div>
+        <div class="linea-recibo total">
+            <span class="etiqueta">Balance</span>
+            <span class="puntos"></span>
+            <span class="monto {{ 'monto-gasto' if balance < 0 else 'monto-ingreso' }}">₡{{ "{:,.2f}".format(balance) }}</span>
+        </div>
+    </div>
+
+    <div class="recibo">
+        <h2>Gastos por categoría</h2>
+        {% if categorias %}
+            <div style="max-width: 100%;">
+                <canvas id="graficoCategorias"></canvas>
+            </div>
+        {% else %}
+            <p class="texto-suave">Todavía no registraste gastos este mes.</p>
+        {% endif %}
+    </div>
+</div>
+
+<a href="{{ url_for('transacciones.nueva') }}" class="btn btn-jade btn-bloque espacio-arriba">+ Agregar transacción</a>
+
+{% if categorias %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+    const nombresCategorias = {{ categorias | map(attribute='nombre') | list | tojson }};
+    const totalesCategorias = {{ categorias | map(attribute='total') | list | tojson }};
+
+    const ctx = document.getElementById('graficoCategorias');
+    new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: nombresCategorias,
+            datasets: [{
+                data: totalesCategorias,
+                backgroundColor: ['#B84B25', '#C68A1D', '#0B6E4F', '#6B5D48', '#8F3A1C', '#D8CDB0'],
+                borderColor: '#FAF6EA',
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            plugins: {
+                legend: {
+                    labels: { font: { family: 'Work Sans' }, color: '#8B7D6B' }
+                }
+            }
+        }
+    });
+
+
+</script>
+{% endif %}
+
+{% if usuario.es_invitado %}
+<script>
+    async function confirmarEliminarDatosInvitado() {
+        const confirmado = await mostrarModal(
+            "¿Eliminar tus datos de prueba?",
+            "Esta acción no se puede deshacer.",
+            "Eliminar",
+            "btn-oxido"
+        );
+        if (confirmado) {
+            document.getElementById("form-eliminar-invitado").submit();
+        }
+    }
+</script>
+{% endif %}
+{% endblock %}

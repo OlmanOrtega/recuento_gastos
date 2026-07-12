@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block titulo %}GastoFlow - Sabé a dónde se va tu plata{% endblock %}
+
+{% block contenido %}
+<div class="landing-hero">
+    <div class="logo" style="font-size: 1.4rem; justify-content: center; display: flex;">gasto<span class="punto">flow</span></div>
+    <h1>Registrá tus gastos en segundos.</h1>
+    <p>Enterate a dónde se va tu plata cada mes, sin planillas ni complicaciones.</p>
+</div>
+
+<div class="recibo">
+    <div class="linea-recibo">
+        <span class="etiqueta">Comida</span>
+        <span class="puntos"></span>
+        <span class="monto monto-gasto">-₡3,500</span>
+    </div>
+    <div class="linea-recibo">
+        <span class="etiqueta">Bus</span>
+        <span class="puntos"></span>
+        <span class="monto monto-gasto">-₡800</span>
+    </div>
+    <div class="linea-recibo">
+        <span class="etiqueta">Salario</span>
+        <span class="puntos"></span>
+        <span class="monto monto-ingreso">+₡150,000</span>
+    </div>
+    <div class="linea-recibo total">
+        <span class="etiqueta">Balance</span>
+        <span class="puntos"></span>
+        <span class="monto">₡145,700</span>
+    </div>
+</div>
+
+<div class="landing-acciones">
+    <a href="{{ url_for('auth.registro') }}" class="btn btn-jade btn-bloque">Crear cuenta</a>
+    <a href="{{ url_for('auth.login') }}" class="btn btn-secundario btn-bloque">Iniciar sesión</a>
+    <a href="{{ url_for('auth.invitado') }}" class="btn-bloque centrado texto-suave espacio-arriba">Probar sin registrarme &rarr;</a>
+</div>
+{% endblock %}
