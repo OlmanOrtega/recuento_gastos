@@ -50,25 +50,12 @@ def _migrar_schema(db):
 
 def crear_app():
     app = Flask(__name__)
-<<<<<<< Updated upstream
-    #DATABASE_URL: si no esta definida, usa SQLite local. Si esta definida (por ejemplo en Docker), apunta a MySQL.
-    # Render entrega la cadena de conexion con el prefijo "postgres://",
-    # pero las versiones modernas de SQLAlchemy (1.4+) exigen
-    # "postgresql://". Sin este ajuste, la app tira un error al conectar
-    # a la base de datos en Render, aunque localmente nunca se nota.
-    database_url = os.environ.get("DATABASE_URL", "sqlite:///gastoflow.db")
-    if database_url.startswith("postgres://"):
-        database_url = database_url.replace("postgres://", "postgresql://", 1)
-    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
-=======
-
     # Render pasa DATABASE_URL con prefijo "postgres://" (viejo),
     # SQLAlchemy 1.4+ requiere "postgresql://". Se corrige automáticamente.
     _db_url = os.environ.get("DATABASE_URL", "sqlite:///gastoflow.db")
     if _db_url.startswith("postgres://"):
         _db_url = _db_url.replace("postgres://", "postgresql://", 1)
     app.config["SQLALCHEMY_DATABASE_URI"] = _db_url
->>>>>>> Stashed changes
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["SECRET_KEY"] = os.environ.get(
         "SECRET_KEY", "clave-de-desarrollo-local-no-se-usa-en-produccion"
