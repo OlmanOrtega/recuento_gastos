@@ -32,7 +32,7 @@
         <!-- Categoría gasto -->
         <div class="campo" id="campo_categoria_gasto">
             <label>Categoría</label>
-            <select name="categoria_id" id="categoria_gasto" required>
+            <select name="categoria_id" id="categoria_gasto">
                 <option value="" disabled selected>Elegí una categoría</option>
                 {% for categoria in categorias_gasto %}
                     <option value="{{ categoria.id }}">{{ categoria.nombre }}</option>
@@ -43,18 +43,21 @@
         <!-- Categoría ingreso -->
         <div class="campo oculto" id="campo_categoria_ingreso">
             <label>Categoría</label>
-            <select id="categoria_ingreso" required>
+            <select id="categoria_ingreso">
                 <option value="" disabled selected>Elegí una categoría</option>
                 {% for categoria in categorias_ingreso %}
                     <option value="{{ categoria.id }}">{{ categoria.nombre }}</option>
                 {% endfor %}
             </select>
         </div>
+        <p id="aviso-categoria" style="display:none; font-size:0.78rem; color:var(--oxido); margin-top:-0.5rem; margin-bottom:1rem;">
+            <i class="ph ph-warning"></i> Elegí una categoría.
+        </p>
 
         <!-- Fecha -->
         <div class="campo">
             <label>Fecha</label>
-            <input type="date" name="fecha" id="input-fecha" value="{{ hoy }}" max="{{ hoy }}" required>
+            <input type="date" name="fecha" id="input-fecha" value="{{ hoy }}" max="{{ hoy }}" novalidate>
             <p id="aviso-fecha" class="texto-suave" style="font-size:0.8rem; margin-top:0.25rem; display:none;">
                 <i class="ph ph-calendar-check"></i>
                 Esta fecha es futura — la transacción se va a programar.
@@ -66,11 +69,11 @@
             <label>Método de pago <span style="color:var(--oxido); font-size:0.75rem;">*</span></label>
             <div class="selector-pago">
                 <label>
-                    <input type="radio" name="metodo_pago" value="efectivo" id="mp_efectivo" required>
+                    <input type="radio" name="metodo_pago" value="efectivo" id="mp_efectivo" novalidate>
                     <i class="ph ph-money"></i><span>Efectivo</span>
                 </label>
                 <label>
-                    <input type="radio" name="metodo_pago" value="digital" id="mp_digital" required>
+                    <input type="radio" name="metodo_pago" value="digital" id="mp_digital" novalidate>
                     <i class="ph ph-credit-card"></i><span>Digital</span>
                 </label>
             </div>
@@ -215,6 +218,24 @@
 
     form.addEventListener("submit", async function(e) {
         e.preventDefault();
+
+        // Validar categoria: chequeamos el select que este activo en este
+        // momento (el que tiene el atributo "name", segun onTipoCambio()),
+        // en vez de depender del "required" nativo del navegador - eso
+        // resulto ser inconsistente entre navegadores para selects ocultos
+        // con display:none, causando que a veces bloqueara el submit sin
+        // mostrar ningun error visible.
+        const tipoActual = document.getElementById("tipo_gasto").checked ? "gasto" : "ingreso";
+        const selectCategoriaActivo = tipoActual === "gasto"
+            ? document.getElementById("categoria_gasto")
+            : document.getElementById("categoria_ingreso");
+        const avisoCategoria = document.getElementById('aviso-categoria');
+        if (!selectCategoriaActivo.value) {
+            avisoCategoria.style.display = 'block';
+            avisoCategoria.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return;
+        }
+        avisoCategoria.style.display = 'none';
 
         // Validar método de pago
         const mpElegido = form.querySelector('input[name="metodo_pago"]:checked');

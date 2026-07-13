@@ -7,29 +7,42 @@
 <div class="recibo">
     <form method="POST" action="{{ url_for('transacciones.editar', transaccion_id=transaccion.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="frecuencia" id="input-frecuencia" value="{% if transaccion.frecuencia %}{{ transaccion.frecuencia }}{% else %}una_vez{% endif %}">
+
+        <!-- Tipo -->
         <div class="selector-tipo">
             <label class="tipo-gasto">
                 <input type="radio" name="tipo" id="tipo_gasto" value="gasto"
-                       {% if transaccion.tipo == 'gasto' %}checked{% endif %}
-                       onchange="mostrarCategoriasSegunTipo()">
+                    {% if transaccion.tipo == 'gasto' %}checked{% endif %}
+                    onchange="onTipoCambio()">
                 <span>Gasto</span>
             </label>
             <label class="tipo-ingreso">
                 <input type="radio" name="tipo" id="tipo_ingreso" value="ingreso"
-                       {% if transaccion.tipo == 'ingreso' %}checked{% endif %}
-                       onchange="mostrarCategoriasSegunTipo()">
+                    {% if transaccion.tipo == 'ingreso' %}checked{% endif %}
+                    onchange="onTipoCambio()">
                 <span>Ingreso</span>
             </label>
         </div>
 
+        <!-- Monto -->
         <div class="campo">
             <label>Monto (₡)</label>
             <input type="number" name="monto" step="0.01" min="0.01" value="{{ transaccion.monto }}" required>
         </div>
 
+        <!-- Aviso de categoría (siempre visible) -->
+        <p id="aviso-categoria" style="display:none; font-size:0.78rem; color:var(--oxido); margin:0 0 0.5rem 0;">
+            <i class="ph ph-warning"></i> Elegí una categoría.
+        </p>
+
+        <!-- Categoría gasto -->
         <div class="campo" id="campo_categoria_gasto">
             <label>Categoría</label>
             <select name="categoria_id" id="categoria_gasto" required>
+                <option value="" disabled {% if not transaccion.categoria_id %}selected{% endif %}>
+                    Elegí una categoría
+                </option>
                 {% for categoria in categorias_gasto %}
                     <option value="{{ categoria.id }}" {% if transaccion.categoria_id == categoria.id %}selected{% endif %}>
                         {{ categoria.nombre }}
@@ -38,9 +51,13 @@
             </select>
         </div>
 
+        <!-- Categoría ingreso -->
         <div class="campo oculto" id="campo_categoria_ingreso">
             <label>Categoría</label>
             <select id="categoria_ingreso" required>
+                <option value="" disabled {% if not transaccion.categoria_id %}selected{% endif %}>
+                    Elegí una categoría
+                </option>
                 {% for categoria in categorias_ingreso %}
                     <option value="{{ categoria.id }}" {% if transaccion.categoria_id == categoria.id %}selected{% endif %}>
                         {{ categoria.nombre }}
@@ -49,58 +66,240 @@
             </select>
         </div>
 
+        <!-- Fecha -->
         <div class="campo">
             <label>Fecha</label>
-            <input type="date" name="fecha" value="{{ transaccion.fecha.isoformat() }}" required>
+            <input type="date" name="fecha" id="input-fecha" value="{{ transaccion.fecha.isoformat() }}" required>
+            <p id="aviso-fecha" class="texto-suave" style="font-size:0.8rem; margin-top:0.25rem; display:none;">
+                <i class="ph ph-calendar-check"></i>
+                Esta fecha es futura — la transacción se va a programar.
+            </p>
         </div>
 
+        <!-- Método de pago -->
         <div class="campo">
-            <label>Método de pago</label>
-            <div class="selector-tipo">
-                <label style="background: var(--surface-1);">
-                    <input type="radio" name="metodo_pago" value="efectivo"
+            <label>Método de pago <span style="color:var(--oxido); font-size:0.75rem;">*</span></label>
+            <div class="selector-pago">
+                <label>
+                    <input type="radio" name="metodo_pago" value="efectivo" id="mp_efectivo"
                            {% if transaccion.metodo_pago == 'efectivo' %}checked{% endif %} required>
                     <i class="ph ph-money"></i><span>Efectivo</span>
                 </label>
-                <label style="background: var(--surface-1);">
-                    <input type="radio" name="metodo_pago" value="digital"
+                <label>
+                    <input type="radio" name="metodo_pago" value="digital" id="mp_digital"
                            {% if transaccion.metodo_pago == 'digital' %}checked{% endif %}>
                     <i class="ph ph-credit-card"></i><span>Digital</span>
                 </label>
             </div>
+            <p id="aviso-metodo" style="display:none; font-size:0.78rem; color:var(--oxido); margin-top:0.2rem;">
+                <i class="ph ph-warning"></i> Elegí un método de pago.
+            </p>
         </div>
 
+        <!-- Nota -->
         <div class="campo">
-            <label>Nota (opcional)</label>
-            <input type="text" name="nota" value="{{ transaccion.nota or '' }}">
+            <label>Nota <span style="color:var(--tinta-muy-suave); font-size:0.8rem;">(opcional)</span></label>
+            <input type="text" name="nota" value="{{ transaccion.nota or '' }}" placeholder="Ej: almuerzo en el trabajo">
         </div>
 
-        <button type="submit" class="btn btn-jade btn-bloque">Guardar cambios</button>
+        <!-- Sección de programación (fecha futura) -->
+        <div id="seccion-programar" style="display:none;">
+            <div style="border-top: 1px solid var(--border); margin: 0.75rem 0;"></div>
+            <p style="font-size:0.82rem; color:var(--accent); font-weight:600; margin-bottom:0.75rem;">
+                <i class="ph ph-calendar-dots"></i> Configurar recurrencia
+            </p>
+            <div class="campo">
+                <label>¿Se repite?</label>
+                <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                    <label class="chip-frecuencia {% if not transaccion.frecuencia or transaccion.frecuencia == 'una_vez' %}activo{% endif %}" data-valor="una_vez">
+                        <input type="radio" name="_frecuencia_ui" value="una_vez" {% if not transaccion.frecuencia or transaccion.frecuencia == 'una_vez' %}checked{% endif %}> Solo esta vez
+                    </label>
+                    <label class="chip-frecuencia {% if transaccion.frecuencia == 'mensual' %}activo{% endif %}" data-valor="mensual">
+                        <input type="radio" name="_frecuencia_ui" value="mensual" {% if transaccion.frecuencia == 'mensual' %}checked{% endif %}> Mensual
+                    </label>
+                    <label class="chip-frecuencia {% if transaccion.frecuencia == 'quincenal' %}activo{% endif %}" data-valor="quincenal">
+                        <input type="radio" name="_frecuencia_ui" value="quincenal" {% if transaccion.frecuencia == 'quincenal' %}checked{% endif %}> Quincenal
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-jade btn-bloque" id="btn-guardar">
+            <i class="ph ph-floppy-disk"></i>
+            <span id="texto-boton">Guardar cambios</span>
+        </button>
         <a href="{{ url_for('transacciones.historial') }}" class="btn btn-secundario btn-bloque espacio-arriba">Cancelar</a>
     </form>
 </div>
 
-<script>
-    function mostrarCategoriasSegunTipo() {
-        const tipo = document.getElementById("tipo_gasto").checked ? "gasto" : "ingreso";
-        const campoGasto = document.getElementById("campo_categoria_gasto");
-        const campoIngreso = document.getElementById("campo_categoria_ingreso");
-        const selectGasto = document.getElementById("categoria_gasto");
-        const selectIngreso = document.getElementById("categoria_ingreso");
+<style>
+    .chip-frecuencia {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.35rem 0.75rem;
+        border-radius: 99px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        border: 1px solid var(--border-strong);
+        background: var(--surface-1);
+        color: var(--tinta-suave);
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .chip-frecuencia input[type="radio"] { display: none; }
+    .chip-frecuencia.activo {
+        background: var(--accent-dim);
+        border-color: var(--accent);
+        color: var(--accent);
+    }
+</style>
 
-        if (tipo === "gasto") {
-            campoGasto.classList.remove("oculto");
-            campoIngreso.classList.add("oculto");
-            selectGasto.setAttribute("name", "categoria_id");
-            selectIngreso.removeAttribute("name");
-        } else {
-            campoGasto.classList.add("oculto");
-            campoIngreso.classList.remove("oculto");
-            selectIngreso.setAttribute("name", "categoria_id");
-            selectGasto.removeAttribute("name");
-        }
+<script>
+    const HOY = "{{ hoy }}" || new Date().toISOString().split('T')[0];
+const fechaInput = document.getElementById('input-fecha');
+
+// ===== UNIFICAR CON LA VERSIÓN NUEVA =====
+function onTipoCambio() {
+    const tipo = document.getElementById("tipo_gasto").checked ? "gasto" : "ingreso";
+    const campoG = document.getElementById("campo_categoria_gasto");
+    const campoI = document.getElementById("campo_categoria_ingreso");
+    const selG   = document.getElementById("categoria_gasto");
+    const selI   = document.getElementById("categoria_ingreso");
+    const aviso  = document.getElementById("aviso-categoria");
+
+    // Ocultar aviso al cambiar
+    if (aviso) aviso.style.display = "none";
+
+    if (tipo === "gasto") {
+        campoG.classList.remove("oculto");
+        campoI.classList.add("oculto");
+        selG.setAttribute("name", "categoria_id");
+        selG.required = true;
+        selI.removeAttribute("name");
+        selI.required = false;
+    } else {
+        campoG.classList.add("oculto");
+        campoI.classList.remove("oculto");
+        selI.setAttribute("name", "categoria_id");
+        selI.required = true;
+        selG.removeAttribute("name");
+        selG.required = false;
+    }
+}
+
+// ===== ACTUALIZAR EVENTOS DE LOS RADIOS =====
+document.getElementById("tipo_gasto").addEventListener('change', onTipoCambio);
+document.getElementById("tipo_ingreso").addEventListener('change', onTipoCambio);
+
+// ===== MANEJO DE FECHA FUTURA =====
+function onFechaCambio() {
+    const fechaVal = fechaInput.value;
+    const esFutura = fechaVal && fechaVal > HOY;
+    const aviso = document.getElementById('aviso-fecha');
+    const seccion = document.getElementById('seccion-programar');
+    const btnTexto = document.getElementById('texto-boton');
+
+    if (aviso) aviso.style.display = esFutura ? "block" : "none";
+    if (seccion) seccion.style.display = esFutura ? "block" : "none";
+    if (btnTexto) {
+        btnTexto.textContent = esFutura 
+            ? "Programar transacción"
+            : "Guardar cambios";
     }
 
-    mostrarCategoriasSegunTipo();
+    const btn = document.getElementById('btn-guardar');
+    if (btn) {
+        const icono = btn.querySelector('i');
+        if (icono) {
+            icono.className = esFutura ? 'ph ph-calendar-dots' : 'ph ph-floppy-disk';
+        }
+    }
+}
+
+// ===== CHIPS DE FRECUENCIA =====
+document.querySelectorAll('.chip-frecuencia').forEach(function(chip) {
+    chip.addEventListener('click', function(e) {
+        e.preventDefault();
+        document.querySelectorAll('.chip-frecuencia').forEach(c => c.classList.remove('activo'));
+        chip.classList.add('activo');
+        const radio = chip.querySelector('input[type="radio"]');
+        if (radio) radio.checked = true;
+        document.getElementById('input-frecuencia').value = chip.dataset.valor;
+    });
+});
+
+// ===== EVENTOS DE FECHA =====
+if (fechaInput) {
+    fechaInput.addEventListener('focus', function() {
+        this.removeAttribute('max');
+    });
+    fechaInput.addEventListener('change', onFechaCambio);
+    setTimeout(onFechaCambio, 100);
+}
+
+// ===== SUBMIT CON VALIDACIÓN =====
+document.querySelector("form").addEventListener("submit", function (e) {
+    // Validar categoría (USAR EL MISMO MÉTODO QUE LA NUEVA)
+    const tipoActual = document.getElementById("tipo_gasto").checked ? "gasto" : "ingreso";
+    const selectActivo = tipoActual === "gasto"
+        ? document.getElementById("categoria_gasto")
+        : document.getElementById("categoria_ingreso");
+    const avisoCategoria = document.getElementById("aviso-categoria");
+
+    if (!selectActivo.value || selectActivo.value === "") {
+        e.preventDefault();
+        if (avisoCategoria) {
+            avisoCategoria.style.display = "block";
+            avisoCategoria.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+        return;
+    } else if (avisoCategoria) {
+        avisoCategoria.style.display = "none";
+    }
+
+    // Validar método de pago
+    const mpElegido = document.querySelector('input[name="metodo_pago"]:checked');
+    const avisoPago = document.getElementById('aviso-metodo');
+    if (!mpElegido) {
+        e.preventDefault();
+        if (avisoPago) {
+            avisoPago.style.display = 'block';
+            avisoPago.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        return;
+    } else if (avisoPago) {
+        avisoPago.style.display = 'none';
+    }
+
+    // Validar monto
+    const monto = document.querySelector('input[name="monto"]');
+    if (!monto.value || parseFloat(monto.value) <= 0) {
+        e.preventDefault();
+        alert('El monto debe ser mayor a 0');
+        monto.focus();
+        return;
+    }
+
+    // Validar fecha
+    if (!fechaInput.value) {
+        e.preventDefault();
+        alert('La fecha es obligatoria');
+        fechaInput.focus();
+        return;
+    }
+});
+
+// ===== INICIALIZAR =====
+onTipoCambio();
+
+// Asegurar chip correcto según frecuencia guardada
+const frecuenciaGuardada = "{% if transaccion.frecuencia %}{{ transaccion.frecuencia }}{% else %}una_vez{% endif %}";
+document.querySelectorAll('.chip-frecuencia').forEach(function(chip) {
+    if (chip.dataset.valor === frecuenciaGuardada) {
+        chip.classList.add('activo');
+        const radio = chip.querySelector('input[type="radio"]');
+        if (radio) radio.checked = true;
+    }
+});
 </script>
 {% endblock %}
