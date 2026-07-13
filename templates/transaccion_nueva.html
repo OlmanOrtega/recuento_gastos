@@ -43,7 +43,7 @@
         <!-- Categoría ingreso -->
         <div class="campo oculto" id="campo_categoria_ingreso">
             <label>Categoría</label>
-            <select id="categoria_ingreso">
+            <select id="categoria_ingreso" required>
                 <option value="" disabled selected>Elegí una categoría</option>
                 {% for categoria in categorias_ingreso %}
                     <option value="{{ categoria.id }}">{{ categoria.nombre }}</option>

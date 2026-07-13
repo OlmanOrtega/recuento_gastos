@@ -48,6 +48,17 @@ def _validar_datos_transaccion(form, usuario_id):
     except (InvalidOperation, ValueError):
         return None, "El monto tiene que ser un numero mayor a cero."
 
+    # Validamos que categoria_id sea realmente un numero antes de usarlo en
+    # la consulta. Sin esto, si llega vacio o con texto (por ejemplo si el
+    # campo no tenia "required" y el usuario nunca eligio nada), la consulta
+    # de mas abajo le pasaria un valor invalido a una columna numerica de la
+    # base de datos y esto podria terminar en un error 500 en vez de un
+    # mensaje de error prolijo.
+    try:
+        categoria_id = int(categoria_id)
+    except (TypeError, ValueError):
+        return None, "Elegí una categoria valida."
+
     categoria = Categoria.query.filter_by(id=categoria_id, usuario_id=usuario_id, tipo=tipo).first()
     if categoria is None:
         return None, "Categoria invalida para ese tipo de transaccion."
